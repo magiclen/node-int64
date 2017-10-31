@@ -1,5 +1,5 @@
 {
-  "name": "int64",
+  "name": "int64-napi",
   "version": "1.0.0",
   "description": "Use N-API to compute 64 bits integers.",
   "main": "index.js",

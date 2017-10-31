@@ -14,13 +14,13 @@ NOTICE: N-API is a new experimental feature in Node.js 8.
 Run `npm i` or `npm install` to install.
 
 ```bash
-npm install int64
+npm install int64-napi
 ```
 
 If you want to save this module to package.json, please add `--save` option.
 
 ```bash
-npm install int64 --save
+npm install int64-napi --save
 ```
 
 ## Initialization
@@ -28,7 +28,7 @@ npm install int64 --save
 Import this module by using `require` function.
 
 ```javascript
-const int64 = require('int64'); // static functions
+const int64 = require('int64-napi'); // static functions
 const Int64 = int64.Int64; // instance methods
 ```
 
