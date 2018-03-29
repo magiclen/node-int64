@@ -1,6 +1,6 @@
 {
   "name": "int64-napi",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Use N-API to compute 64 bits integers.",
   "main": "index.js",
   "scripts": {
@@ -29,6 +29,6 @@
   },
   "devDependencies": {
     "chai": "^4.1.2",
-    "mocha": "^3.5.3"
+    "mocha": "^5.0.5"
   }
 }
