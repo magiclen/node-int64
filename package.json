@@ -3,7 +3,6 @@
   "version": "1.0.2",
   "description": "Use N-API to compute 64 bits integers.",
   "main": "src/lib.js",
-  "typings": "index.d.ts",
   "scripts": {
     "test": "mocha tests/**/*.test.js",
     "build": "node-gyp rebuild",
