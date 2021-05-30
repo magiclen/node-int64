@@ -1,10 +1,17 @@
 {
   "name": "int64-napi",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Use N-API to compute 64 bits integers.",
-  "main": "index.js",
+  "main": "src/lib.js",
+  "typings": "index.d.ts",
   "scripts": {
-    "test": "mocha --reporter spec"
+    "test": "mocha tests/**/*.test.js",
+    "build": "node-gyp rebuild",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm run test"
+  },
+  "engines": {
+    "node": ">=12"
   },
   "repository": {
     "type": "git",
@@ -15,20 +22,18 @@
     "long",
     "nodejs"
   ],
-  "engines": {
-    "node": ">=8.6.0"
-  },
   "author": "Magic Len <len@magiclen.org> (https://magiclen.org)",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/magiclen/node-int64/issues"
   },
-  "homepage": "https://github.com/magiclen/node-int64#readme",
-  "license": "MIT",
+  "homepage": "https://magiclen.org/node-js-int64/",
   "dependencies": {
     "bindings": "^1.3.0"
   },
   "devDependencies": {
     "chai": "^4.1.2",
-    "mocha": "^5.0.5"
+    "eslint": "^7.27.0",
+    "mocha": "^8.4.0"
   }
 }
