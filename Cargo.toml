@@ -1,0 +1,24 @@
+[package]
+name = "int64-napi"
+version = "2.0.0"
+edition = "2018"
+repository = "https://github.com/magiclen/node-int64"
+homepage = "https://magiclen.org/node-js-int64/"
+keywords = ["node.js", "int64", "long"]
+categories = []
+description = "Use Rust to compute 64-bit signed integers."
+license = "MIT"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[profile.release]
+lto = true
+codegen-units = 1
+
+[dependencies]
+random-number = "0.1.6"
+
+[dependencies.neon]
+version = "0.8"
