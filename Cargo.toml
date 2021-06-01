@@ -22,6 +22,5 @@ random-number = "0.1.6"
 
 [dependencies.neon]
 version = "0.8"
-
-[build-dependencies.neon-build]
-version = "0.8"
+default-features = false
+features = ["napi-6"]
