@@ -1,14 +1,15 @@
 {
   "name": "int64-napi",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Use Rust to compute 64-bit signed integers.",
   "main": "lib/lib.js",
   "typings": "lib/lib.d.ts",
   "scripts": {
     "test": "mocha -r ts-node/register tests/**/*.test.ts",
     "dev": "tsc -w",
-    "build": "cargo-cp-artifact -nc index.node -- cargo build --release --message-format=json-render-diagnostics && tsc",
-    "install": "npm run build",
+    "native-build": "cargo-cp-artifact -nc index.node -- cargo build --release --message-format=json-render-diagnostics",
+    "build": "npm run native-build && tsc",
+    "install": "npm run native-build",
     "prepare": "npm run build",
     "prepublishOnly": "npm run test"
   },
