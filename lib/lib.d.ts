@@ -258,4 +258,4 @@ export declare const comp: (a: I64, b: I64) => 0 | 1 | 2;
 * Gets a random number between a and b.
 */
 export declare const random: (a: I64, b: I64) => number;
-export {};
+export default Int64;

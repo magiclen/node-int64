@@ -396,3 +396,5 @@ export const comp = (a: I64, b: I64): 0 | 1 | 2 => int64.comp(a, b);
 * Gets a random number between a and b.
 */
 export const random = (a: I64, b: I64): number => int64.random(a, b);
+
+export default Int64;
