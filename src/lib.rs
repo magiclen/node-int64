@@ -656,7 +656,7 @@ impl Int64 {
 
         let i = this.0.load(atomic::Ordering::Relaxed);
 
-        let mut buffer = JsBuffer::new(&mut cx, 8)?;
+        let mut buffer = unsafe { JsBuffer::uninitialized(&mut cx, 8)? };
 
         cx.borrow_mut(&mut buffer, |buffer| {
             buffer.as_mut_slice().copy_from_slice(&i.to_le_bytes());
