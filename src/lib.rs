@@ -57,11 +57,7 @@ fn to_i64<'a, T: Managed>(
         }
     }
 
-    let value = match value.downcast::<JsNumber, _>(cx) {
-        Ok(value) => value,
-        Err(_) => return Err(cx.throw_type_error("the input is not a number")),
-    }
-    .value(cx);
+    let value = value.downcast_or_throw::<JsNumber, _>(cx).map_err(Err)?.value(cx);
 
     if value.is_infinite() || value.is_nan() || value.fract() > f64::EPSILON {
         return Err(cx.throw_type_error(format!("{} is not an integer", value)));
