@@ -12,7 +12,7 @@ describe("Add", function () {
             n = int64.add(n, 98766455);
         }
         expect(n.toString()).to.equal("987664550000");
-        let m = Int64.from(0);
+        const m = Int64.from(0);
         for (let i = 0;i < 10;++i) {
             m.add(n);
         }
@@ -27,7 +27,7 @@ describe("Subtract", function () {
             n = int64.subtract(n, 98766455);
         }
         expect(n.toString()).to.equal("-987664550000");
-        let m = Int64.from(0);
+        const m = Int64.from(0);
         for (let i = 0;i < 10;++i) {
             m.subtract(n);
         }
@@ -37,7 +37,7 @@ describe("Subtract", function () {
 
 describe("Multiply", function () {
     it("should multiply", function () {
-        let n = Int64.from(1);
+        const n = Int64.from(1);
         for (let i = 1;i < 20;++i) {
             n.multiply(i);
         }
@@ -49,7 +49,7 @@ describe("Multiply", function () {
 
 describe("Divide", function () {
     it("should divide", function () {
-        let n = Int64.from("243290200817664000");
+        const n = Int64.from("243290200817664000");
         n.divide(20);
         expect(n.toDecimal()).to.equal("12164510040883200");
         n.divide(2);
@@ -59,7 +59,7 @@ describe("Divide", function () {
 
 describe("Mod", function () {
     it("should mod", function () {
-        let n = Int64.from("894453210654871");
+        const n = Int64.from("894453210654871");
         n.mod(8);
         expect(n.toNumber()).to.equal(7);
         n.mod(2);
@@ -69,7 +69,7 @@ describe("Mod", function () {
 
 describe("Negative", function () {
     it("should negative", function () {
-        let n = Int64.from("894453210654871");
+        const n = Int64.from("894453210654871");
         n.negative();
         expect(n.toDecimal()).to.equal("-894453210654871");
         n.negative();
@@ -79,8 +79,8 @@ describe("Negative", function () {
 
 describe("Gt", function () {
     it("should greater than", function () {
-        let a = Int64.from("894453210654871");
-        let b = Int64.from("894453210654870");
+        const a = Int64.from("894453210654871");
+        const b = Int64.from("894453210654870");
         let n = int64.gt(a, b);
         expect(n).to.equal(true);
         n = a.gt(b);
