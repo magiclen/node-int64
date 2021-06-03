@@ -10,7 +10,7 @@ export class Int64 {
     /**
      * Create a new <code>Int64</code> instance.
      */
-    static from(a: I64) {
+    static from(a: I64): Int64 {
         return new Int64(a);
     }
 
