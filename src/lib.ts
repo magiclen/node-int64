@@ -1,4 +1,4 @@
-import util from 'util';
+import util from "util";
 
 const int64 = require("../index.node");
 
@@ -230,9 +230,9 @@ export class Int64 {
 
     /**
      * If <code>self > a</code>, returns 1.
-     * 
+     *
      * If <code>self < a</code>, returns -1.
-     * 
+     *
      * If <code>self === a</code>, returns 0.
      */
     comp(a: I64): 0 | 1 | 2 {
@@ -385,9 +385,9 @@ export const lte = (a: I64, b: I64): boolean => int64.lte(a, b);
 
 /**
  * If the first one is bigger than the second one, returns 1.
- * 
+ *
  * If the first one is smaller than the second one, returns -1.
- * 
+ *
  * If the first one is equal to the second one, returns 0.
  */
 export const comp = (a: I64, b: I64): 0 | 1 | 2 => int64.comp(a, b);
