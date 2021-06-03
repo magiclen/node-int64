@@ -1,5 +1,5 @@
 /// <reference types="node" />
-import util from 'util';
+import util from "util";
 declare type I64 = number | string | Buffer | Int64;
 export declare class Int64 {
     private boxed;
