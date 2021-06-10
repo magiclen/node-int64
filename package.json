@@ -1,6 +1,6 @@
 {
   "name": "int64-napi",
-  "version": "2.0.7",
+  "version": "2.0.8",
   "description": "Use Rust to compute 64-bit signed integers.",
   "main": "lib/lib.js",
   "typings": "lib/lib.d.ts",
