@@ -1,11 +1,12 @@
 import util from "util";
 
+// eslint-disable-next-line @typescript-eslint/no-var-requires
 const int64 = require("../index.node");
 
 type I64 = number | string | Buffer | Int64;
 
 export class Int64 {
-    private boxed: any;
+    private boxed;
 
     /**
      * Create a new <code>Int64</code> instance.
