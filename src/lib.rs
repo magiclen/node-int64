@@ -1,10 +1,5 @@
 #![allow(clippy::wrong_self_convention)]
 
-extern crate neon;
-
-#[macro_use]
-extern crate random_number;
-
 mod functions;
 
 use std::cmp::Ordering;
@@ -12,6 +7,7 @@ use std::sync::atomic::{self, AtomicI64};
 
 use neon::handle::Managed;
 use neon::prelude::*;
+use neon::types::buffer::TypedArray;
 
 use functions::*;
 
@@ -30,14 +26,15 @@ fn to_i64<'a, T: Managed>(
     }
 
     if let Ok(value) = value.downcast::<JsBuffer, _>(cx) {
-        let value = cx.borrow(&value, |buffer| {
-            if buffer.len() == 8 {
-                let b = buffer.as_slice::<u8>();
+        let value = {
+            let b = value.as_slice(cx);
+
+            if b.len() == 8 {
                 Some(i64::from_le_bytes([b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]]))
             } else {
                 None
             }
-        });
+        };
 
         return match value {
             Some(value) => Ok(value),
@@ -50,10 +47,8 @@ fn to_i64<'a, T: Managed>(
     }
 
     if let Ok(value) = value.downcast::<JsObject, _>(cx) {
-        if let Ok(boxed) = value.get(cx, "boxed") {
-            if let Ok(value) = boxed.downcast::<JsBox<Int64>, _>(cx) {
-                return Ok(value.0.load(atomic::Ordering::Relaxed));
-            }
+        if let Ok(value) = value.get::<JsBox<Int64>, _, _>(cx, "boxed") {
+            return Ok(value.0.load(atomic::Ordering::Relaxed));
         }
     }
 
@@ -536,7 +531,7 @@ fn random(mut cx: FunctionContext) -> JsResult<JsNumber> {
         Err(err) => return err,
     };
 
-    let c = random!(arg1, arg2);
+    let c = random_number::random!(arg1, arg2);
 
     to_js_number(&mut cx, c)
 }
@@ -654,9 +649,9 @@ impl Int64 {
 
         let mut buffer = unsafe { JsBuffer::uninitialized(&mut cx, 8)? };
 
-        cx.borrow_mut(&mut buffer, |buffer| {
-            buffer.as_mut_slice().copy_from_slice(&i.to_le_bytes());
-        });
+        let slice = buffer.as_mut_slice(&mut cx);
+
+        slice.copy_from_slice(&i.to_le_bytes());
 
         Ok(buffer)
     }
@@ -1238,7 +1233,7 @@ impl Int64 {
 
         let i = this.0.load(atomic::Ordering::Relaxed);
 
-        to_js_number(&mut cx, random!(i, arg))
+        to_js_number(&mut cx, random_number::random!(i, arg))
     }
 }
 
