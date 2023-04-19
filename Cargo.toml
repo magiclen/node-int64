@@ -1,7 +1,8 @@
 [package]
 name = "int64-napi"
-version = "2.0.10"
+version = "3.0.0"
 edition = "2021"
+rust-version = "1.57"
 repository = "https://github.com/magiclen/node-int64"
 homepage = "https://magiclen.org/node-js-int64/"
 keywords = ["node.js", "int64", "long"]
@@ -18,9 +19,10 @@ lto = true
 codegen-units = 1
 
 [dependencies]
+napi = "2"
+napi-derive = "2"
+
 random-number = "0.1.6"
 
-[dependencies.neon]
-version = "0.10"
-default-features = false
-features = ["napi-6"]
+[build-dependencies]
+napi-build = "2"

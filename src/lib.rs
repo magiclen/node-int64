@@ -1,15 +1,10 @@
-#![allow(clippy::wrong_self_convention)]
-
 mod functions;
-
-use std::cmp::Ordering;
-use std::sync::atomic::{self, AtomicI64};
-
-use neon::handle::Managed;
-use neon::prelude::*;
-use neon::types::buffer::TypedArray;
+mod napi_static;
 
 use functions::*;
+use napi::bindgen_prelude::*;
+use napi_derive::napi;
+pub use napi_static::*;
 
 // 2^53 - 1;
 const MAX_SAFE_INTEGER: i64 = 9007199254740991;
@@ -17,1291 +12,623 @@ const MAX_SAFE_INTEGER: i64 = 9007199254740991;
 // -(2^53 - 1);
 const MIN_SAFE_INTEGER: i64 = -9007199254740991;
 
-fn to_i64<'a, T: Managed>(
-    cx: &mut FunctionContext<'a>,
-    value: Handle<JsValue>,
-) -> Result<i64, JsResult<'a, T>> {
-    if let Ok(value) = value.downcast::<JsString, _>(cx).map(|v| v.value(cx)) {
-        return string_to_i64(value).map_err(|err| cx.throw_error(err.to_string()));
-    }
+// We need this enum to build the definition of Ordering.
+#[napi]
+pub enum Ordering {
+    Less    = -1,
+    Equal   = 0,
+    Greater = 1,
+}
 
-    if let Ok(value) = value.downcast::<JsBuffer, _>(cx) {
-        let value = {
-            let b = value.as_slice(cx);
-
-            if b.len() == 8 {
-                Some(i64::from_le_bytes([b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]]))
-            } else {
-                None
-            }
-        };
-
-        return match value {
-            Some(value) => Ok(value),
-            None => Err(cx.throw_type_error("the length of the input buffer is not 8")),
-        };
-    }
-
-    if let Ok(value) = value.downcast::<JsBox<Int64>, _>(cx) {
-        return Ok(value.0.load(atomic::Ordering::Relaxed));
-    }
-
-    if let Ok(value) = value.downcast::<JsObject, _>(cx) {
-        if let Ok(value) = value.get::<JsBox<Int64>, _, _>(cx, "boxed") {
-            return Ok(value.0.load(atomic::Ordering::Relaxed));
+impl From<std::cmp::Ordering> for Ordering {
+    #[inline]
+    fn from(value: std::cmp::Ordering) -> Self {
+        match value {
+            std::cmp::Ordering::Less => Ordering::Less,
+            std::cmp::Ordering::Equal => Ordering::Equal,
+            std::cmp::Ordering::Greater => Ordering::Greater,
         }
     }
-
-    let value = value.downcast_or_throw::<JsNumber, _>(cx).map_err(Err)?.value(cx);
-
-    if value.is_infinite() || value.is_nan() || value.fract() > f64::EPSILON {
-        return Err(cx.throw_type_error(format!("{} is not an integer", value)));
-    }
-
-    Ok(value as i64)
 }
 
-fn to_js_number<'a>(cx: &mut FunctionContext<'a>, i: i64) -> JsResult<'a, JsNumber> {
-    if i > MAX_SAFE_INTEGER {
-        cx.throw_range_error(format!("{} is bigger than {}", i, MAX_SAFE_INTEGER))
-    } else if i < MIN_SAFE_INTEGER {
-        cx.throw_range_error(format!("{} is smaller than {}", i, MIN_SAFE_INTEGER))
-    } else {
-        Ok(JsNumber::new(cx, i as f64))
-    }
+#[napi]
+pub struct Int64 {
+    v: i64,
 }
 
-#[inline]
-fn js_number_0<'a>(cx: &mut FunctionContext<'a>) -> JsResult<'a, JsNumber> {
-    Ok(JsNumber::new(cx, 0))
-}
-
-#[inline]
-fn js_number_1<'a>(cx: &mut FunctionContext<'a>) -> JsResult<'a, JsNumber> {
-    Ok(JsNumber::new(cx, 1))
-}
-
-#[inline]
-fn js_number_n1<'a>(cx: &mut FunctionContext<'a>) -> JsResult<'a, JsNumber> {
-    Ok(JsNumber::new(cx, -1))
-}
-
-#[inline]
-fn to_js_boolean<'a>(cx: &mut FunctionContext<'a>, b: bool) -> JsResult<'a, JsBoolean> {
-    Ok(JsBoolean::new(cx, b))
-}
-
-fn parse_arguments_number<'a>(
-    cx: &mut FunctionContext<'a>,
-) -> Result<(i64, i64), JsResult<'a, JsNumber>> {
-    match cx.argument_opt(0) {
-        Some(arg1) => {
-            let arg1 = match to_i64(cx, arg1) {
-                Ok(arg) => arg,
-                Err(err) => return Err(err),
-            };
-
-            match cx.argument_opt(1) {
-                Some(arg2) => {
-                    let arg2 = match to_i64(cx, arg2) {
-                        Ok(arg) => arg,
-                        Err(err) => return Err(err),
-                    };
-
-                    Ok((arg1, arg2))
-                }
-                None => Err(to_js_number(cx, arg1)),
-            }
-        }
-        None => Err(js_number_0(cx)),
-    }
-}
-
-fn parse_arguments_boolean<'a>(
-    cx: &mut FunctionContext<'a>,
-) -> Result<(i64, i64), JsResult<'a, JsBoolean>> {
-    if cx.len() < 2 {
-        return Err(cx.throw_error("need two arguments"));
-    }
-
-    let arg1 = cx.argument_opt(0).unwrap();
-    let arg2 = cx.argument_opt(1).unwrap();
-
-    let arg1 = match to_i64(cx, arg1) {
-        Ok(arg) => arg,
-        Err(err) => return Err(err),
-    };
-
-    let arg2 = match to_i64(cx, arg2) {
-        Ok(arg) => arg,
-        Err(err) => return Err(err),
-    };
-
-    Ok((arg1, arg2))
-}
-
-fn add(mut cx: FunctionContext) -> JsResult<JsNumber> {
-    let (arg1, arg2) = match parse_arguments_number(&mut cx) {
-        Ok(args) => args,
-        Err(err) => return err,
-    };
-
-    let sum = arg1.wrapping_add(arg2);
-
-    to_js_number(&mut cx, sum)
-}
-
-fn subtract(mut cx: FunctionContext) -> JsResult<JsNumber> {
-    let (arg1, arg2) = match parse_arguments_number(&mut cx) {
-        Ok(args) => args,
-        Err(err) => return err,
-    };
-
-    let difference = arg1.wrapping_sub(arg2);
-
-    to_js_number(&mut cx, difference)
-}
-
-fn multiply(mut cx: FunctionContext) -> JsResult<JsNumber> {
-    let (arg1, arg2) = match parse_arguments_number(&mut cx) {
-        Ok(args) => args,
-        Err(err) => return err,
-    };
-
-    let product = arg1.wrapping_mul(arg2);
-
-    to_js_number(&mut cx, product)
-}
-
-fn divide(mut cx: FunctionContext) -> JsResult<JsNumber> {
-    let (arg1, arg2) = match parse_arguments_number(&mut cx) {
-        Ok(args) => args,
-        Err(err) => return err,
-    };
-
-    let quotient = arg1.wrapping_div(arg2);
-
-    to_js_number(&mut cx, quotient)
-}
-
-fn r#mod(mut cx: FunctionContext) -> JsResult<JsNumber> {
-    let (arg1, arg2) = match parse_arguments_number(&mut cx) {
-        Ok(args) => args,
-        Err(err) => return err,
-    };
-
-    let remainder = arg1.wrapping_rem(arg2);
-
-    to_js_number(&mut cx, remainder)
-}
-
-fn pow(mut cx: FunctionContext) -> JsResult<JsNumber> {
-    let (arg1, arg2) = match parse_arguments_number(&mut cx) {
-        Ok(args) => args,
-        Err(err) => return err,
-    };
-
-    if arg2 < 0 {
-        return cx
-            .throw_range_error("the exponent of an integer number may not be smaller than zero");
-    } else if arg2 > u32::MAX as i64 {
-        return cx.throw_range_error(format!(
-            "the exponent of an integer number may not be bigger than {}",
-            u32::MAX
-        ));
-    }
-
-    let product = arg1.wrapping_pow(arg2 as u32);
-
-    to_js_number(&mut cx, product)
-}
-
-fn shift_left(mut cx: FunctionContext) -> JsResult<JsNumber> {
-    let (arg1, arg2) = match parse_arguments_number(&mut cx) {
-        Ok(args) => args,
-        Err(err) => return err,
-    };
-
-    if arg2 < 0 {
-        return cx.throw_range_error("the bit count for shift may not be smaller than zero");
-    } else if arg2 > u32::MAX as i64 {
-        return cx.throw_range_error(format!(
-            "the bit count for shift may not be bigger than {}",
-            u32::MAX
-        ));
-    }
-
-    let c = arg1.wrapping_shl(arg2 as u32);
-
-    to_js_number(&mut cx, c)
-}
-
-fn shift_right(mut cx: FunctionContext) -> JsResult<JsNumber> {
-    let (arg1, arg2) = match parse_arguments_number(&mut cx) {
-        Ok(args) => args,
-        Err(err) => return err,
-    };
-
-    if arg2 < 0 {
-        return cx.throw_range_error("the bit count for shift may not be smaller than zero");
-    } else if arg2 > u32::MAX as i64 {
-        return cx.throw_range_error(format!(
-            "the bit count for shift may not be bigger than {}",
-            u32::MAX
-        ));
-    }
-
-    let c = arg1.wrapping_shr(arg2 as u32);
-
-    to_js_number(&mut cx, c)
-}
-
-fn shift_right_unsigned(mut cx: FunctionContext) -> JsResult<JsNumber> {
-    let (arg1, arg2) = match parse_arguments_number(&mut cx) {
-        Ok(args) => args,
-        Err(err) => return err,
-    };
-
-    if arg2 < 0 {
-        return cx.throw_range_error("the bit count for shift may not be smaller than zero");
-    } else if arg2 > u32::MAX as i64 {
-        return cx.throw_range_error(format!(
-            "the bit count for shift may not be bigger than {}",
-            u32::MAX
-        ));
-    }
-
-    let c = (arg1 as u64).wrapping_shr(arg2 as u32);
-
-    to_js_number(&mut cx, c as i64)
-}
-
-fn rotate_left(mut cx: FunctionContext) -> JsResult<JsNumber> {
-    let (arg1, arg2) = match parse_arguments_number(&mut cx) {
-        Ok(args) => args,
-        Err(err) => return err,
-    };
-
-    if arg2 < 0 {
-        return cx.throw_range_error("the bit count for rotation may not be smaller than zero");
-    } else if arg2 > u32::MAX as i64 {
-        return cx.throw_range_error(format!(
-            "the bit count for rotation may not be bigger than {}",
-            u32::MAX
-        ));
-    }
-
-    let c = arg1.rotate_left(arg2 as u32);
-
-    to_js_number(&mut cx, c)
-}
-
-fn rotate_right(mut cx: FunctionContext) -> JsResult<JsNumber> {
-    let (arg1, arg2) = match parse_arguments_number(&mut cx) {
-        Ok(args) => args,
-        Err(err) => return err,
-    };
-
-    if arg2 < 0 {
-        return cx.throw_range_error("the bit count for rotation may not be smaller than zero");
-    } else if arg2 > u32::MAX as i64 {
-        return cx.throw_range_error(format!(
-            "the bit count for rotation may not be bigger than {}",
-            u32::MAX
-        ));
-    }
-
-    let c = arg1.rotate_right(arg2 as u32);
-
-    to_js_number(&mut cx, c)
-}
-
-fn and(mut cx: FunctionContext) -> JsResult<JsNumber> {
-    let (arg1, arg2) = match parse_arguments_number(&mut cx) {
-        Ok(args) => args,
-        Err(err) => return err,
-    };
-
-    let c = arg1 & arg2;
-
-    to_js_number(&mut cx, c)
-}
-
-fn or(mut cx: FunctionContext) -> JsResult<JsNumber> {
-    let (arg1, arg2) = match parse_arguments_number(&mut cx) {
-        Ok(args) => args,
-        Err(err) => return err,
-    };
-
-    let c = arg1 | arg2;
-
-    to_js_number(&mut cx, c)
-}
-
-fn xor(mut cx: FunctionContext) -> JsResult<JsNumber> {
-    let (arg1, arg2) = match parse_arguments_number(&mut cx) {
-        Ok(args) => args,
-        Err(err) => return err,
-    };
-
-    let c = arg1 ^ arg2;
-
-    to_js_number(&mut cx, c)
-}
-
-fn nand(mut cx: FunctionContext) -> JsResult<JsNumber> {
-    let (arg1, arg2) = match parse_arguments_number(&mut cx) {
-        Ok(args) => args,
-        Err(err) => return err,
-    };
-
-    let c = !(arg1 & arg2);
-
-    to_js_number(&mut cx, c)
-}
-
-fn nor(mut cx: FunctionContext) -> JsResult<JsNumber> {
-    let (arg1, arg2) = match parse_arguments_number(&mut cx) {
-        Ok(args) => args,
-        Err(err) => return err,
-    };
-
-    let c = !(arg1 | arg2);
-
-    to_js_number(&mut cx, c)
-}
-
-fn xnor(mut cx: FunctionContext) -> JsResult<JsNumber> {
-    let (arg1, arg2) = match parse_arguments_number(&mut cx) {
-        Ok(args) => args,
-        Err(err) => return err,
-    };
-
-    let c = !(arg1 ^ arg2);
-
-    to_js_number(&mut cx, c)
-}
-
-fn not(mut cx: FunctionContext) -> JsResult<JsNumber> {
-    match cx.argument_opt(0) {
-        Some(arg) => {
-            let arg = match to_i64(&mut cx, arg) {
-                Ok(arg) => arg,
-                Err(err) => return err,
-            };
-
-            let c = !arg;
-
-            to_js_number(&mut cx, c)
-        }
-        None => js_number_0(&mut cx),
-    }
-}
-
-fn negative(mut cx: FunctionContext) -> JsResult<JsNumber> {
-    match cx.argument_opt(0) {
-        Some(arg) => {
-            let arg = match to_i64(&mut cx, arg) {
-                Ok(arg) => arg,
-                Err(err) => return err,
-            };
-
-            let c = -arg;
-
-            to_js_number(&mut cx, c)
-        }
-        None => js_number_0(&mut cx),
-    }
-}
-
-fn eq(mut cx: FunctionContext) -> JsResult<JsBoolean> {
-    let (arg1, arg2) = match parse_arguments_boolean(&mut cx) {
-        Ok(args) => args,
-        Err(err) => return err,
-    };
-
-    let b = arg1 == arg2;
-
-    to_js_boolean(&mut cx, b)
-}
-
-fn ne(mut cx: FunctionContext) -> JsResult<JsBoolean> {
-    let (arg1, arg2) = match parse_arguments_boolean(&mut cx) {
-        Ok(args) => args,
-        Err(err) => return err,
-    };
-
-    let b = arg1 != arg2;
-
-    to_js_boolean(&mut cx, b)
-}
-
-fn gt(mut cx: FunctionContext) -> JsResult<JsBoolean> {
-    let (arg1, arg2) = match parse_arguments_boolean(&mut cx) {
-        Ok(args) => args,
-        Err(err) => return err,
-    };
-
-    let b = arg1 > arg2;
-
-    to_js_boolean(&mut cx, b)
-}
-
-fn gte(mut cx: FunctionContext) -> JsResult<JsBoolean> {
-    let (arg1, arg2) = match parse_arguments_boolean(&mut cx) {
-        Ok(args) => args,
-        Err(err) => return err,
-    };
-
-    let b = arg1 >= arg2;
-
-    to_js_boolean(&mut cx, b)
-}
-
-fn lt(mut cx: FunctionContext) -> JsResult<JsBoolean> {
-    let (arg1, arg2) = match parse_arguments_boolean(&mut cx) {
-        Ok(args) => args,
-        Err(err) => return err,
-    };
-
-    let b = arg1 < arg2;
-
-    to_js_boolean(&mut cx, b)
-}
-
-fn lte(mut cx: FunctionContext) -> JsResult<JsBoolean> {
-    let (arg1, arg2) = match parse_arguments_boolean(&mut cx) {
-        Ok(args) => args,
-        Err(err) => return err,
-    };
-
-    let b = arg1 <= arg2;
-
-    to_js_boolean(&mut cx, b)
-}
-
-fn comp(mut cx: FunctionContext) -> JsResult<JsNumber> {
-    let (arg1, arg2) = match parse_arguments_number(&mut cx) {
-        Ok(args) => args,
-        Err(err) => return err,
-    };
-
-    match arg1.cmp(&arg2) {
-        Ordering::Equal => js_number_0(&mut cx),
-        Ordering::Greater => js_number_1(&mut cx),
-        Ordering::Less => js_number_n1(&mut cx),
-    }
-}
-
-fn random(mut cx: FunctionContext) -> JsResult<JsNumber> {
-    if cx.len() < 2 {
-        return cx.throw_error("need two arguments");
-    }
-
-    let arg1 = cx.argument_opt(0).unwrap();
-    let arg2 = cx.argument_opt(1).unwrap();
-
-    let arg1 = match to_i64(&mut cx, arg1) {
-        Ok(arg) => {
-            if arg > MAX_SAFE_INTEGER {
-                return cx
-                    .throw_range_error(format!("{} is bigger than {}", arg, MAX_SAFE_INTEGER));
-            } else if arg < MIN_SAFE_INTEGER {
-                return cx
-                    .throw_range_error(format!("{} is smaller than {}", arg, MIN_SAFE_INTEGER));
-            } else {
-                arg
-            }
-        }
-        Err(err) => return err,
-    };
-
-    let arg2 = match to_i64(&mut cx, arg2) {
-        Ok(arg) => {
-            if arg > MAX_SAFE_INTEGER {
-                return cx
-                    .throw_range_error(format!("{} is bigger than {}", arg, MAX_SAFE_INTEGER));
-            } else if arg < MIN_SAFE_INTEGER {
-                return cx
-                    .throw_range_error(format!("{} is smaller than {}", arg, MIN_SAFE_INTEGER));
-            } else {
-                arg
-            }
-        }
-        Err(err) => return err,
-    };
-
-    let c = random_number::random!(arg1, arg2);
-
-    to_js_number(&mut cx, c)
-}
-
-// TODO class
-
-#[derive(Debug)]
-pub struct Int64(AtomicI64);
-
-impl Finalize for Int64 {}
-
-#[inline]
-fn to_js_string<'a, S: Into<String>>(cx: &mut FunctionContext<'a>, s: S) -> JsResult<'a, JsString> {
-    Ok(JsString::new(cx, s.into()))
-}
-
-#[inline]
-fn to_js_int64<'a>(cx: &mut FunctionContext<'a>, i: i64) -> JsResult<'a, JsBox<Int64>> {
-    Ok(JsBox::new(cx, Int64(AtomicI64::new(i))))
-}
-
+#[napi]
 impl Int64 {
-    fn init(mut cx: FunctionContext) -> JsResult<JsBox<Int64>> {
-        let arg = match cx.argument_opt(0) {
-            Some(arg) => {
-                match to_i64(&mut cx, arg) {
-                    Ok(arg) => arg,
-                    Err(err) => return err,
-                }
-            }
-            None => return cx.throw_error("need an argument"),
-        };
+    /// @param value The initial value. Default: `0`.
+    #[napi(constructor)]
+    pub fn new(
+        env: Env,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Option<
+            Either<&Int64, Unknown>,
+        >,
+    ) -> Result<Self> {
+        match value {
+            Some(value) => {
+                let v = to_i64(&env, value)?;
 
-        to_js_int64(&mut cx, arg)
-    }
-
-    fn to_decimal(mut cx: FunctionContext) -> JsResult<JsString> {
-        let this = cx.argument::<JsBox<Int64>>(0).unwrap();
-
-        let i = this.0.load(atomic::Ordering::Relaxed);
-
-        to_js_string(&mut cx, format!("{}", i))
-    }
-
-    fn to_binary(mut cx: FunctionContext) -> JsResult<JsString> {
-        let this = cx.argument::<JsBox<Int64>>(0).unwrap();
-
-        let i = this.0.load(atomic::Ordering::Relaxed);
-
-        if let Some(Ok(arg)) = cx.argument_opt(1).map(|arg| arg.downcast::<JsBoolean, _>(&mut cx)) {
-            if arg.value(&mut cx) {
-                return to_js_string(&mut cx, format!("{:#066b}", i));
-            }
+                Ok(Int64 {
+                    v,
+                })
+            },
+            None => Ok(Int64 {
+                v: 0
+            }),
         }
-
-        to_js_string(&mut cx, format!("{:b}", i))
     }
 
-    fn to_octal(mut cx: FunctionContext) -> JsResult<JsString> {
-        let this = cx.argument::<JsBox<Int64>>(0).unwrap();
-
-        let i = this.0.load(atomic::Ordering::Relaxed);
-
-        if let Some(Ok(arg)) = cx.argument_opt(1).map(|arg| arg.downcast::<JsBoolean, _>(&mut cx)) {
-            if arg.value(&mut cx) {
-                return to_js_string(&mut cx, format!("{:#024o}", i));
-            }
-        }
-
-        to_js_string(&mut cx, format!("{:o}", i))
+    /// To a decimal number in a string.
+    #[napi(js_name = "toDecimal")]
+    pub fn to_decimal(&self) -> String {
+        format!("{}", self.v)
     }
 
-    fn to_hex(mut cx: FunctionContext) -> JsResult<JsString> {
-        let this = cx.argument::<JsBox<Int64>>(0).unwrap();
-
-        let i = this.0.load(atomic::Ordering::Relaxed);
-
-        let arg1 = if let Some(arg) = cx.argument_opt(1) {
-            if let Ok(arg) = arg.downcast::<JsBoolean, _>(&mut cx) {
-                arg.value(&mut cx)
-            } else {
-                false
-            }
+    /// To a binary number in a string.
+    #[napi(js_name = "toBinary")]
+    pub fn to_binary(&self, format: Option<bool>) -> String {
+        if format.unwrap_or(false) {
+            format!("{:#066b}", self.v)
         } else {
-            false
-        };
+            format!("{:b}", self.v)
+        }
+    }
 
-        let arg2 = if let Some(arg) = cx.argument_opt(2) {
-            if let Ok(arg) = arg.downcast::<JsBoolean, _>(&mut cx) {
-                arg.value(&mut cx)
-            } else {
-                false
-            }
+    /// To a octal number in a string.
+    #[napi(js_name = "toOctal")]
+    pub fn to_octal(&self, format: Option<bool>) -> String {
+        if format.unwrap_or(false) {
+            format!("{:#024o}", self.v)
         } else {
-            false
-        };
+            format!("{:o}", self.v)
+        }
+    }
 
-        if arg1 {
-            if arg2 {
-                to_js_string(&mut cx, format!("{:#018X}", i))
+    /// To a hex number in a string.
+    #[napi(js_name = "toHex")]
+    pub fn to_hex(&self, format: Option<bool>, uppercase: Option<bool>) -> String {
+        if uppercase.unwrap_or(false) {
+            if format.unwrap_or(false) {
+                format!("{:#018X}", self.v)
             } else {
-                to_js_string(&mut cx, format!("{:#018x}", i))
+                format!("{:X}", self.v)
             }
-        } else if arg2 {
-            to_js_string(&mut cx, format!("{:X}", i))
+        } else if format.unwrap_or(false) {
+            format!("{:#018x}", self.v)
         } else {
-            to_js_string(&mut cx, format!("{:#x}", i))
+            format!("{:x}", self.v)
         }
     }
 
-    fn to_buffer(mut cx: FunctionContext) -> JsResult<JsBuffer> {
-        let this = cx.argument::<JsBox<Int64>>(0).unwrap();
-
-        let i = this.0.load(atomic::Ordering::Relaxed);
-
-        let mut buffer = unsafe { JsBuffer::uninitialized(&mut cx, 8)? };
-
-        let slice = buffer.as_mut_slice(&mut cx);
-
-        slice.copy_from_slice(&i.to_le_bytes());
-
-        Ok(buffer)
+    /// To a 64-bit buffer in Little-Endian byte order.
+    #[napi(js_name = "toBuffer")]
+    pub fn to_buffer(&self) -> Buffer {
+        Buffer::from(self.v.to_le_bytes().to_vec())
     }
 
-    fn to_number(mut cx: FunctionContext) -> JsResult<JsNumber> {
-        let this = cx.argument::<JsBox<Int64>>(0).unwrap();
+    /// To a number. If this 64-bit integer number is bigger than `2^53 - 1`, or smaller than `-(2^53 - 1)`, then throws a RangeError.
+    #[napi(js_name = "toNumber")]
+    pub fn to_number(&self, env: Env) -> Result<i64> {
+        if self.v > MAX_SAFE_INTEGER {
+            env.throw_range_error(
+                format!("{} is bigger than {MAX_SAFE_INTEGER}", self.v).as_str(),
+                None,
+            )?;
 
-        let i = this.0.load(atomic::Ordering::Relaxed);
+            Err(Error::from_reason(""))
+        } else if self.v < MIN_SAFE_INTEGER {
+            env.throw_range_error(
+                format!("{} is smaller than {MIN_SAFE_INTEGER}", self.v).as_str(),
+                None,
+            )?;
 
-        to_js_number(&mut cx, i)
+            Err(Error::from_reason(""))
+        } else {
+            Ok(self.v)
+        }
     }
 
-    fn set(mut cx: FunctionContext) -> JsResult<JsBox<Int64>> {
-        let this = cx.argument::<JsBox<Int64>>(0).unwrap();
+    /// Sets the value of this instance.
+    #[napi]
+    pub fn set(
+        &mut self,
+        this: This,
+        env: Env,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
+    ) -> Result<This> {
+        let v = to_i64(&env, value)?;
 
-        let arg = match cx.argument_opt(1) {
-            Some(arg) => {
-                match to_i64(&mut cx, arg) {
-                    Ok(arg) => arg,
-                    Err(err) => return err,
-                }
-            }
-            None => return cx.throw_error("need an argument"),
-        };
-
-        this.0.store(arg, atomic::Ordering::Relaxed);
+        self.v = v;
 
         Ok(this)
     }
 
-    fn add(mut cx: FunctionContext) -> JsResult<JsBox<Int64>> {
-        let this = cx.argument::<JsBox<Int64>>(0).unwrap();
+    /// Computes `self += value`, wrapping around at the boundary of an 64-bit integer.
+    #[napi]
+    pub fn add(
+        &mut self,
+        this: This,
+        env: Env,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
+    ) -> Result<This> {
+        let a = self.v;
+        let b = to_i64(&env, value)?;
 
-        let arg = match cx.argument_opt(1) {
-            Some(arg) => {
-                match to_i64(&mut cx, arg) {
-                    Ok(arg) => arg,
-                    Err(err) => return err,
-                }
-            }
-            None => return cx.throw_error("need an argument"),
-        };
-
-        this.0.fetch_add(arg, atomic::Ordering::Relaxed);
+        self.v = a.wrapping_add(b);
 
         Ok(this)
     }
 
-    fn subtract(mut cx: FunctionContext) -> JsResult<JsBox<Int64>> {
-        let this = cx.argument::<JsBox<Int64>>(0).unwrap();
+    /// Computes `self -= value`, wrapping around at the boundary of an 64-bit integer.
+    #[napi]
+    pub fn subtract(
+        &mut self,
+        this: This,
+        env: Env,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
+    ) -> Result<This> {
+        let a = self.v;
+        let b = to_i64(&env, value)?;
 
-        let arg = match cx.argument_opt(1) {
-            Some(arg) => {
-                match to_i64(&mut cx, arg) {
-                    Ok(arg) => arg,
-                    Err(err) => return err,
-                }
-            }
-            None => return cx.throw_error("need an argument"),
-        };
-
-        this.0.fetch_sub(arg, atomic::Ordering::Relaxed);
+        self.v = a.wrapping_sub(b);
 
         Ok(this)
     }
 
-    fn multiply(mut cx: FunctionContext) -> JsResult<JsBox<Int64>> {
-        let this = cx.argument::<JsBox<Int64>>(0).unwrap();
+    /// Computes `self *= value`, wrapping around at the boundary of an 64-bit integer.
+    #[napi]
+    pub fn multiply(
+        &mut self,
+        this: This,
+        env: Env,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
+    ) -> Result<This> {
+        let a = self.v;
+        let b = to_i64(&env, value)?;
 
-        let arg = match cx.argument_opt(1) {
-            Some(arg) => {
-                match to_i64(&mut cx, arg) {
-                    Ok(arg) => arg,
-                    Err(err) => return err,
-                }
-            }
-            None => return cx.throw_error("need an argument"),
-        };
-
-        let i = this.0.load(atomic::Ordering::Acquire);
-
-        this.0.store(i.wrapping_mul(arg), atomic::Ordering::Release);
+        self.v = a.wrapping_mul(b);
 
         Ok(this)
     }
 
-    fn divide(mut cx: FunctionContext) -> JsResult<JsBox<Int64>> {
-        let this = cx.argument::<JsBox<Int64>>(0).unwrap();
+    /// Computes `self /= value`, wrapping around at the boundary of an 64-bit integer.
+    #[napi]
+    pub fn divide(
+        &mut self,
+        this: This,
+        env: Env,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
+    ) -> Result<This> {
+        let a = self.v;
+        let b = to_i64(&env, value)?;
 
-        let arg = match cx.argument_opt(1) {
-            Some(arg) => {
-                match to_i64(&mut cx, arg) {
-                    Ok(arg) => arg,
-                    Err(err) => return err,
-                }
-            }
-            None => return cx.throw_error("need an argument"),
-        };
-
-        let i = this.0.load(atomic::Ordering::Acquire);
-
-        this.0.store(i.wrapping_div(arg), atomic::Ordering::Release);
+        self.v = a.wrapping_div(b);
 
         Ok(this)
     }
 
-    fn r#mod(mut cx: FunctionContext) -> JsResult<JsBox<Int64>> {
-        let this = cx.argument::<JsBox<Int64>>(0).unwrap();
+    /// Computes `self %= value`, wrapping around at the boundary of an 64-bit integer.
+    #[napi(js_name = "mod")]
+    pub fn modulo(
+        &mut self,
+        this: This,
+        env: Env,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
+    ) -> Result<This> {
+        let a = self.v;
+        let b = to_i64(&env, value)?;
 
-        let arg = match cx.argument_opt(1) {
-            Some(arg) => {
-                match to_i64(&mut cx, arg) {
-                    Ok(arg) => arg,
-                    Err(err) => return err,
-                }
-            }
-            None => return cx.throw_error("need an argument"),
-        };
-
-        let i = this.0.load(atomic::Ordering::Acquire);
-
-        this.0.store(i.wrapping_rem(arg), atomic::Ordering::Release);
+        self.v = a.wrapping_rem(b);
 
         Ok(this)
     }
 
-    fn pow(mut cx: FunctionContext) -> JsResult<JsBox<Int64>> {
-        let this = cx.argument::<JsBox<Int64>>(0).unwrap();
+    /// Computes `self %= value`, wrapping around at the boundary of an 64-bit integer.
+    ///
+    /// `b` must not be smaller than zero
+    #[napi]
+    pub fn pow(
+        &mut self,
+        this: This,
+        env: Env,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
+    ) -> Result<This> {
+        let a = self.v;
+        let b = to_i64(&env, value)?;
 
-        let arg = match cx.argument_opt(1) {
-            Some(arg) => {
-                match to_i64(&mut cx, arg) {
-                    Ok(arg) => arg,
-                    Err(err) => return err,
-                }
-            }
-            None => return cx.throw_error("need an argument"),
-        };
+        if b < 0 {
+            env.throw_range_error(
+                "the exponent of an integer number must not be smaller than zero",
+                None,
+            )?;
 
-        if arg < 0 {
-            return cx.throw_range_error(
-                "the exponent of an integer number may not be smaller than zero",
-            );
-        } else if arg > u32::MAX as i64 {
-            return cx.throw_range_error(format!(
-                "the exponent of an integer number may not be bigger than {}",
-                u32::MAX
-            ));
+            return Err(Error::from_reason(""));
+        } else if b > u32::MAX as i64 {
+            env.throw_range_error(
+                &format!("the exponent of an integer number must not be bigger than {}", u32::MAX),
+                None,
+            )?;
+
+            return Err(Error::from_reason(""));
         }
 
-        let i = this.0.load(atomic::Ordering::Acquire);
-
-        this.0.store(i.wrapping_pow(arg as u32), atomic::Ordering::Release);
+        self.v = a.wrapping_pow(b as u32);
 
         Ok(this)
     }
 
-    fn shift_left(mut cx: FunctionContext) -> JsResult<JsBox<Int64>> {
-        let this = cx.argument::<JsBox<Int64>>(0).unwrap();
+    /// Computes `self <<= value`, wrapping around at the boundary of an 64-bit integer.
+    ///
+    /// `b` must not be smaller than zero
+    #[napi(js_name = "shiftLeft")]
+    pub fn shift_left(
+        &mut self,
+        this: This,
+        env: Env,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
+    ) -> Result<This> {
+        let a = self.v;
+        let b = to_i64(&env, value)?;
 
-        let arg = match cx.argument_opt(1) {
-            Some(arg) => {
-                match to_i64(&mut cx, arg) {
-                    Ok(arg) => arg,
-                    Err(err) => return err,
-                }
-            }
-            None => return cx.throw_error("need an argument"),
-        };
+        if b < 0 {
+            env.throw_range_error("the bit count for shift must not be smaller than zero", None)?;
 
-        if arg < 0 {
-            return cx.throw_range_error("the bit count for shift may not be smaller than zero");
-        } else if arg > u32::MAX as i64 {
-            return cx.throw_range_error(format!(
-                "the bit count for shift may not be bigger than {}",
-                u32::MAX
-            ));
+            return Err(Error::from_reason(""));
+        } else if b > u32::MAX as i64 {
+            env.throw_range_error(
+                &format!("the bit count for shift must not be bigger than {}", u32::MAX),
+                None,
+            )?;
+
+            return Err(Error::from_reason(""));
         }
 
-        let i = this.0.load(atomic::Ordering::Acquire);
-
-        this.0.store(i.wrapping_shl(arg as u32), atomic::Ordering::Release);
+        self.v = a.wrapping_shl(b as u32);
 
         Ok(this)
     }
 
-    fn shift_right(mut cx: FunctionContext) -> JsResult<JsBox<Int64>> {
-        let this = cx.argument::<JsBox<Int64>>(0).unwrap();
+    /// Computes `self >>= value`, wrapping around at the boundary of an 64-bit integer.
+    ///
+    /// `b` must not be smaller than zero
+    #[napi(js_name = "shiftRight")]
+    pub fn shift_right(
+        &mut self,
+        this: This,
+        env: Env,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
+    ) -> Result<This> {
+        let a = self.v;
+        let b = to_i64(&env, value)?;
 
-        let arg = match cx.argument_opt(1) {
-            Some(arg) => {
-                match to_i64(&mut cx, arg) {
-                    Ok(arg) => arg,
-                    Err(err) => return err,
-                }
-            }
-            None => return cx.throw_error("need an argument"),
-        };
+        if b < 0 {
+            env.throw_range_error("the bit count for shift must not be smaller than zero", None)?;
 
-        if arg < 0 {
-            return cx.throw_range_error("the bit count for shift may not be smaller than zero");
-        } else if arg > u32::MAX as i64 {
-            return cx.throw_range_error(format!(
-                "the bit count for shift may not be bigger than {}",
-                u32::MAX
-            ));
+            return Err(Error::from_reason(""));
+        } else if b > u32::MAX as i64 {
+            env.throw_range_error(
+                &format!("the bit count for shift must not be bigger than {}", u32::MAX),
+                None,
+            )?;
+
+            return Err(Error::from_reason(""));
         }
 
-        let i = this.0.load(atomic::Ordering::Acquire);
-
-        this.0.store(i.wrapping_shr(arg as u32), atomic::Ordering::Release);
+        self.v = a.wrapping_shr(b as u32);
 
         Ok(this)
     }
 
-    fn shift_right_unsigned(mut cx: FunctionContext) -> JsResult<JsBox<Int64>> {
-        let this = cx.argument::<JsBox<Int64>>(0).unwrap();
+    /// Computes `self >>= value`, wrapping around at the boundary of an 64-bit integer.
+    ///
+    /// `b` must not be smaller than zero
+    #[napi(js_name = "shiftRightUnsigned")]
+    pub fn shift_right_unsigned(
+        &mut self,
+        this: This,
+        env: Env,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
+    ) -> Result<This> {
+        let a = self.v;
+        let b = to_i64(&env, value)?;
 
-        let arg = match cx.argument_opt(1) {
-            Some(arg) => {
-                match to_i64(&mut cx, arg) {
-                    Ok(arg) => arg,
-                    Err(err) => return err,
-                }
-            }
-            None => return cx.throw_error("need an argument"),
-        };
+        if b < 0 {
+            env.throw_range_error("the bit count for shift must not be smaller than zero", None)?;
 
-        if arg < 0 {
-            return cx.throw_range_error("the bit count for shift may not be smaller than zero");
-        } else if arg > u32::MAX as i64 {
-            return cx.throw_range_error(format!(
-                "the bit count for shift may not be bigger than {}",
-                u32::MAX
-            ));
+            return Err(Error::from_reason(""));
+        } else if b > u32::MAX as i64 {
+            env.throw_range_error(
+                &format!("the bit count for shift must not be bigger than {}", u32::MAX),
+                None,
+            )?;
+
+            return Err(Error::from_reason(""));
         }
 
-        let i = this.0.load(atomic::Ordering::Acquire);
-
-        this.0.store((i as u64).wrapping_shr(arg as u32) as i64, atomic::Ordering::Release);
+        self.v = (a as u64).wrapping_shr(b as u32) as i64;
 
         Ok(this)
     }
 
-    fn rotate_left(mut cx: FunctionContext) -> JsResult<JsBox<Int64>> {
-        let this = cx.argument::<JsBox<Int64>>(0).unwrap();
+    /// Shifts the bits to the left by a specified amount n, wrapping the truncated bits to the beginning of the resulting 64-bit integer.
+    ///
+    /// `b` must not be smaller than zero
+    #[napi(js_name = "rotateLeft")]
+    pub fn rotate_left(
+        &mut self,
+        this: This,
+        env: Env,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
+    ) -> Result<This> {
+        let a = self.v;
+        let b = to_i64(&env, value)?;
 
-        let arg = match cx.argument_opt(1) {
-            Some(arg) => {
-                match to_i64(&mut cx, arg) {
-                    Ok(arg) => arg,
-                    Err(err) => return err,
-                }
-            }
-            None => return cx.throw_error("need an argument"),
-        };
+        if b < 0 {
+            env.throw_range_error(
+                "the bit count for rotation must not be smaller than zero",
+                None,
+            )?;
 
-        if arg < 0 {
-            return cx.throw_range_error("the bit count for rotation may not be smaller than zero");
-        } else if arg > u32::MAX as i64 {
-            return cx.throw_range_error(format!(
-                "the bit count for rotation may not be bigger than {}",
-                u32::MAX
-            ));
+            return Err(Error::from_reason(""));
+        } else if b > u32::MAX as i64 {
+            env.throw_range_error(
+                &format!("the bit count for rotation must not be bigger than {}", u32::MAX),
+                None,
+            )?;
+
+            return Err(Error::from_reason(""));
         }
 
-        let i = this.0.load(atomic::Ordering::Acquire);
-
-        this.0.store(i.rotate_left(arg as u32), atomic::Ordering::Release);
+        self.v = a.rotate_left(b as u32);
 
         Ok(this)
     }
 
-    fn rotate_right(mut cx: FunctionContext) -> JsResult<JsBox<Int64>> {
-        let this = cx.argument::<JsBox<Int64>>(0).unwrap();
+    /// Shifts the bits to the right by a specified amount n, wrapping the truncated bits to the beginning of the resulting 64-bit integer.
+    ///
+    /// `b` must not be smaller than zero
+    #[napi(js_name = "rotateRight")]
+    pub fn rotate_right(
+        &mut self,
+        this: This,
+        env: Env,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
+    ) -> Result<This> {
+        let a = self.v;
+        let b = to_i64(&env, value)?;
 
-        let arg = match cx.argument_opt(1) {
-            Some(arg) => {
-                match to_i64(&mut cx, arg) {
-                    Ok(arg) => arg,
-                    Err(err) => return err,
-                }
-            }
-            None => return cx.throw_error("need an argument"),
-        };
+        if b < 0 {
+            env.throw_range_error(
+                "the bit count for rotation must not be smaller than zero",
+                None,
+            )?;
 
-        if arg < 0 {
-            return cx.throw_range_error("the bit count for rotation may not be smaller than zero");
-        } else if arg > u32::MAX as i64 {
-            return cx.throw_range_error(format!(
-                "the bit count for rotation may not be bigger than {}",
-                u32::MAX
-            ));
+            return Err(Error::from_reason(""));
+        } else if b > u32::MAX as i64 {
+            env.throw_range_error(
+                &format!("the bit count for rotation must not be bigger than {}", u32::MAX),
+                None,
+            )?;
+
+            return Err(Error::from_reason(""));
         }
 
-        let i = this.0.load(atomic::Ordering::Acquire);
-
-        this.0.store(i.rotate_right(arg as u32), atomic::Ordering::Release);
+        self.v = a.rotate_right(b as u32);
 
         Ok(this)
     }
 
-    fn and(mut cx: FunctionContext) -> JsResult<JsBox<Int64>> {
-        let this = cx.argument::<JsBox<Int64>>(0).unwrap();
-
-        let arg = match cx.argument_opt(1) {
-            Some(arg) => {
-                match to_i64(&mut cx, arg) {
-                    Ok(arg) => arg,
-                    Err(err) => return err,
-                }
-            }
-            None => return cx.throw_error("need an argument"),
-        };
-
-        this.0.fetch_and(arg, atomic::Ordering::Relaxed);
+    /// Computes `self &= value`.
+    #[napi]
+    pub fn and(
+        &mut self,
+        this: This,
+        env: Env,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
+    ) -> Result<This> {
+        self.v &= to_i64(&env, value)?;
 
         Ok(this)
     }
 
-    fn or(mut cx: FunctionContext) -> JsResult<JsBox<Int64>> {
-        let this = cx.argument::<JsBox<Int64>>(0).unwrap();
-
-        let arg = match cx.argument_opt(1) {
-            Some(arg) => {
-                match to_i64(&mut cx, arg) {
-                    Ok(arg) => arg,
-                    Err(err) => return err,
-                }
-            }
-            None => return cx.throw_error("need an argument"),
-        };
-
-        this.0.fetch_or(arg, atomic::Ordering::Relaxed);
+    /// Computes `self |= value`.
+    #[napi]
+    pub fn or(
+        &mut self,
+        this: This,
+        env: Env,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
+    ) -> Result<This> {
+        self.v |= to_i64(&env, value)?;
 
         Ok(this)
     }
 
-    fn xor(mut cx: FunctionContext) -> JsResult<JsBox<Int64>> {
-        let this = cx.argument::<JsBox<Int64>>(0).unwrap();
-
-        let arg = match cx.argument_opt(1) {
-            Some(arg) => {
-                match to_i64(&mut cx, arg) {
-                    Ok(arg) => arg,
-                    Err(err) => return err,
-                }
-            }
-            None => return cx.throw_error("need an argument"),
-        };
-
-        this.0.fetch_xor(arg, atomic::Ordering::Relaxed);
+    /// Computes `self ^= value`.
+    #[napi]
+    pub fn xor(
+        &mut self,
+        this: This,
+        env: Env,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
+    ) -> Result<This> {
+        self.v ^= to_i64(&env, value)?;
 
         Ok(this)
     }
 
-    fn nand(mut cx: FunctionContext) -> JsResult<JsBox<Int64>> {
-        let this = cx.argument::<JsBox<Int64>>(0).unwrap();
-
-        let arg = match cx.argument_opt(1) {
-            Some(arg) => {
-                match to_i64(&mut cx, arg) {
-                    Ok(arg) => arg,
-                    Err(err) => return err,
-                }
-            }
-            None => return cx.throw_error("need an argument"),
-        };
-
-        this.0.fetch_nand(arg, atomic::Ordering::Relaxed);
+    /// Computes `self = ~(self & value)`.
+    #[napi]
+    pub fn nand(
+        &mut self,
+        this: This,
+        env: Env,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
+    ) -> Result<This> {
+        self.v = !(self.v & to_i64(&env, value)?);
 
         Ok(this)
     }
 
-    fn nor(mut cx: FunctionContext) -> JsResult<JsBox<Int64>> {
-        let this = cx.argument::<JsBox<Int64>>(0).unwrap();
-
-        let arg = match cx.argument_opt(1) {
-            Some(arg) => {
-                match to_i64(&mut cx, arg) {
-                    Ok(arg) => arg,
-                    Err(err) => return err,
-                }
-            }
-            None => return cx.throw_error("need an argument"),
-        };
-
-        let i = this.0.load(atomic::Ordering::Acquire);
-
-        this.0.store(!(i | arg), atomic::Ordering::Release);
+    /// Computes `self = ~(self | value)`.
+    #[napi]
+    pub fn nor(
+        &mut self,
+        this: This,
+        env: Env,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
+    ) -> Result<This> {
+        self.v = !(self.v | to_i64(&env, value)?);
 
         Ok(this)
     }
 
-    fn xnor(mut cx: FunctionContext) -> JsResult<JsBox<Int64>> {
-        let this = cx.argument::<JsBox<Int64>>(0).unwrap();
-
-        let arg = match cx.argument_opt(1) {
-            Some(arg) => {
-                match to_i64(&mut cx, arg) {
-                    Ok(arg) => arg,
-                    Err(err) => return err,
-                }
-            }
-            None => return cx.throw_error("need an argument"),
-        };
-
-        let i = this.0.load(atomic::Ordering::Acquire);
-
-        this.0.store(!(i ^ arg), atomic::Ordering::Release);
+    /// Computes `self = ~(self ^ value)`.
+    #[napi]
+    pub fn xnor(
+        &mut self,
+        this: This,
+        env: Env,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
+    ) -> Result<This> {
+        self.v = !(self.v ^ to_i64(&env, value)?);
 
         Ok(this)
     }
 
-    fn not(mut cx: FunctionContext) -> JsResult<JsBox<Int64>> {
-        let this = cx.argument::<JsBox<Int64>>(0).unwrap();
-
-        let i = this.0.load(atomic::Ordering::Acquire);
-
-        this.0.store(!i, atomic::Ordering::Release);
+    /// Computes `self = ~self`.
+    #[napi]
+    pub fn not(&mut self, this: This) -> Result<This> {
+        self.v = !self.v;
 
         Ok(this)
     }
 
-    fn negative(mut cx: FunctionContext) -> JsResult<JsBox<Int64>> {
-        let this = cx.argument::<JsBox<Int64>>(0).unwrap();
-
-        let i = this.0.load(atomic::Ordering::Acquire);
-
-        this.0.store(-i, atomic::Ordering::Release);
+    /// Computes `self = -self`.
+    #[napi]
+    pub fn negative(&mut self, this: This) -> Result<This> {
+        self.v = -self.v;
 
         Ok(this)
     }
 
-    fn eq(mut cx: FunctionContext) -> JsResult<JsBoolean> {
-        let this = cx.argument::<JsBox<Int64>>(0).unwrap();
+    /// Computes `self === value`.
+    #[napi]
+    pub fn eq(
+        &self,
+        env: Env,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
+    ) -> Result<bool> {
+        let a = self.v;
+        let b = to_i64(&env, value)?;
 
-        let arg = match cx.argument_opt(1) {
-            Some(arg) => {
-                match to_i64(&mut cx, arg) {
-                    Ok(arg) => arg,
-                    Err(err) => return err,
-                }
-            }
-            None => return cx.throw_error("need an argument"),
-        };
-
-        let i = this.0.load(atomic::Ordering::Relaxed);
-
-        to_js_boolean(&mut cx, i == arg)
+        Ok(a == b)
     }
 
-    fn ne(mut cx: FunctionContext) -> JsResult<JsBoolean> {
-        let this = cx.argument::<JsBox<Int64>>(0).unwrap();
+    /// Computes `self !== value`.
+    #[napi]
+    pub fn ne(
+        &self,
+        env: Env,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
+    ) -> Result<bool> {
+        let a = self.v;
+        let b = to_i64(&env, value)?;
 
-        let arg = match cx.argument_opt(1) {
-            Some(arg) => {
-                match to_i64(&mut cx, arg) {
-                    Ok(arg) => arg,
-                    Err(err) => return err,
-                }
-            }
-            None => return cx.throw_error("need an argument"),
-        };
-
-        let i = this.0.load(atomic::Ordering::Relaxed);
-
-        to_js_boolean(&mut cx, i != arg)
+        Ok(a != b)
     }
 
-    fn gt(mut cx: FunctionContext) -> JsResult<JsBoolean> {
-        let this = cx.argument::<JsBox<Int64>>(0).unwrap();
+    /// Computes `self > value`.
+    #[napi]
+    pub fn gt(
+        &self,
+        env: Env,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
+    ) -> Result<bool> {
+        let a = self.v;
+        let b = to_i64(&env, value)?;
 
-        let arg = match cx.argument_opt(1) {
-            Some(arg) => {
-                match to_i64(&mut cx, arg) {
-                    Ok(arg) => arg,
-                    Err(err) => return err,
-                }
-            }
-            None => return cx.throw_error("need an argument"),
-        };
-
-        let i = this.0.load(atomic::Ordering::Relaxed);
-
-        to_js_boolean(&mut cx, i > arg)
+        Ok(a > b)
     }
 
-    fn gte(mut cx: FunctionContext) -> JsResult<JsBoolean> {
-        let this = cx.argument::<JsBox<Int64>>(0).unwrap();
+    /// Computes `self >= value`.
+    #[napi]
+    pub fn gte(
+        &self,
+        env: Env,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
+    ) -> Result<bool> {
+        let a = self.v;
+        let b = to_i64(&env, value)?;
 
-        let arg = match cx.argument_opt(1) {
-            Some(arg) => {
-                match to_i64(&mut cx, arg) {
-                    Ok(arg) => arg,
-                    Err(err) => return err,
-                }
-            }
-            None => return cx.throw_error("need an argument"),
-        };
-
-        let i = this.0.load(atomic::Ordering::Relaxed);
-
-        to_js_boolean(&mut cx, i >= arg)
+        Ok(a >= b)
     }
 
-    fn lt(mut cx: FunctionContext) -> JsResult<JsBoolean> {
-        let this = cx.argument::<JsBox<Int64>>(0).unwrap();
+    /// Computes `self < value`.
+    #[napi]
+    pub fn lt(
+        &self,
+        env: Env,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
+    ) -> Result<bool> {
+        let a = self.v;
+        let b = to_i64(&env, value)?;
 
-        let arg = match cx.argument_opt(1) {
-            Some(arg) => {
-                match to_i64(&mut cx, arg) {
-                    Ok(arg) => arg,
-                    Err(err) => return err,
-                }
-            }
-            None => return cx.throw_error("need an argument"),
-        };
-
-        let i = this.0.load(atomic::Ordering::Relaxed);
-
-        to_js_boolean(&mut cx, i < arg)
+        Ok(a < b)
     }
 
-    fn lte(mut cx: FunctionContext) -> JsResult<JsBoolean> {
-        let this = cx.argument::<JsBox<Int64>>(0).unwrap();
+    /// Computes `self <= value`.
+    #[napi]
+    pub fn lte(
+        &self,
+        env: Env,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
+    ) -> Result<bool> {
+        let a = self.v;
+        let b = to_i64(&env, value)?;
 
-        let arg = match cx.argument_opt(1) {
-            Some(arg) => {
-                match to_i64(&mut cx, arg) {
-                    Ok(arg) => arg,
-                    Err(err) => return err,
-                }
-            }
-            None => return cx.throw_error("need an argument"),
-        };
-
-        let i = this.0.load(atomic::Ordering::Relaxed);
-
-        to_js_boolean(&mut cx, i <= arg)
+        Ok(a <= b)
     }
 
-    fn comp(mut cx: FunctionContext) -> JsResult<JsNumber> {
-        let this = cx.argument::<JsBox<Int64>>(0).unwrap();
+    /// If `self < value`, returns `-1`.
+    /// If `self === value`, returns `0`.
+    /// If `self > value`, returns `1`.
+    #[napi]
+    pub fn comp(
+        &self,
+        env: Env,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
+    ) -> Result<Ordering> {
+        let a = self.v;
+        let b = to_i64(&env, value)?;
 
-        let arg = match cx.argument_opt(1) {
-            Some(arg) => {
-                match to_i64(&mut cx, arg) {
-                    Ok(arg) => arg,
-                    Err(err) => return err,
-                }
-            }
-            None => return cx.throw_error("need an argument"),
-        };
-
-        let i = this.0.load(atomic::Ordering::Relaxed);
-
-        let c = match i.cmp(&arg) {
-            Ordering::Equal => 0,
-            Ordering::Greater => 1,
-            Ordering::Less => -1,
-        };
-
-        to_js_number(&mut cx, c)
+        Ok(a.cmp(&b).into())
     }
 
-    fn random(mut cx: FunctionContext) -> JsResult<JsNumber> {
-        let this = cx.argument::<JsBox<Int64>>(0).unwrap();
+    /// Set a random 64-bit integer between `self` and `value`.
+    #[napi]
+    pub fn random(
+        &mut self,
+        this: This,
+        env: Env,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
+    ) -> Result<This> {
+        let a = self.v;
+        let b = to_i64(&env, value)?;
 
-        let arg = match cx.argument_opt(1) {
-            Some(arg) => {
-                match to_i64(&mut cx, arg) {
-                    Ok(arg) => arg,
-                    Err(err) => return err,
-                }
-            }
-            None => return cx.throw_error("need an argument"),
-        };
+        self.v = random_number::random!(a, b);
 
-        let i = this.0.load(atomic::Ordering::Relaxed);
-
-        to_js_number(&mut cx, random_number::random!(i, arg))
+        Ok(this)
     }
-}
 
-#[neon::main]
-fn main(mut cx: ModuleContext) -> NeonResult<()> {
-    cx.export_function("add", add)?;
-    cx.export_function("subtract", subtract)?;
-    cx.export_function("multiply", multiply)?;
-    cx.export_function("divide", divide)?;
-    cx.export_function("mod", r#mod)?;
-    cx.export_function("pow", pow)?;
-    cx.export_function("shiftLeft", shift_left)?;
-    cx.export_function("shiftRight", shift_right)?;
-    cx.export_function("shiftRightUnsigned", shift_right_unsigned)?;
-    cx.export_function("rotateLeft", rotate_left)?;
-    cx.export_function("rotateRight", rotate_right)?;
-    cx.export_function("and", and)?;
-    cx.export_function("or", or)?;
-    cx.export_function("xor", xor)?;
-    cx.export_function("nand", nand)?;
-    cx.export_function("nor", nor)?;
-    cx.export_function("xnor", xnor)?;
-    cx.export_function("not", not)?;
-    cx.export_function("negative", negative)?;
-    cx.export_function("eq", eq)?;
-    cx.export_function("ne", ne)?;
-    cx.export_function("gt", gt)?;
-    cx.export_function("gte", gte)?;
-    cx.export_function("lt", lt)?;
-    cx.export_function("lte", lte)?;
-    cx.export_function("comp", comp)?;
-    cx.export_function("random", random)?;
-
-    cx.export_function("initMethod", Int64::init)?;
-    cx.export_function("toDecimalMethod", Int64::to_decimal)?;
-    cx.export_function("toBinaryMethod", Int64::to_binary)?;
-    cx.export_function("toOctalMethod", Int64::to_octal)?;
-    cx.export_function("toHexMethod", Int64::to_hex)?;
-    cx.export_function("toBufferMethod", Int64::to_buffer)?;
-    cx.export_function("toNumberMethod", Int64::to_number)?;
-    cx.export_function("setMethod", Int64::set)?;
-    cx.export_function("addMethod", Int64::add)?;
-    cx.export_function("subtractMethod", Int64::subtract)?;
-    cx.export_function("multiplyMethod", Int64::multiply)?;
-    cx.export_function("divideMethod", Int64::divide)?;
-    cx.export_function("modMethod", Int64::r#mod)?;
-    cx.export_function("powMethod", Int64::pow)?;
-    cx.export_function("shiftLeftMethod", Int64::shift_left)?;
-    cx.export_function("shiftRightMethod", Int64::shift_right)?;
-    cx.export_function("shiftRightUnsignedMethod", Int64::shift_right_unsigned)?;
-    cx.export_function("rotateLeftMethod", Int64::rotate_left)?;
-    cx.export_function("rotateRightMethod", Int64::rotate_right)?;
-    cx.export_function("andMethod", Int64::and)?;
-    cx.export_function("orMethod", Int64::or)?;
-    cx.export_function("xorMethod", Int64::xor)?;
-    cx.export_function("nandMethod", Int64::nand)?;
-    cx.export_function("norMethod", Int64::nor)?;
-    cx.export_function("xnorMethod", Int64::xnor)?;
-    cx.export_function("notMethod", Int64::not)?;
-    cx.export_function("negativeMethod", Int64::negative)?;
-    cx.export_function("eqMethod", Int64::eq)?;
-    cx.export_function("neMethod", Int64::ne)?;
-    cx.export_function("gtMethod", Int64::gt)?;
-    cx.export_function("gteMethod", Int64::gte)?;
-    cx.export_function("ltMethod", Int64::lt)?;
-    cx.export_function("lteMethod", Int64::lte)?;
-    cx.export_function("compMethod", Int64::comp)?;
-    cx.export_function("randomMethod", Int64::random)?;
-
-    Ok(())
+    #[allow(clippy::should_implement_trait)]
+    /// Clones this `Int64` object.
+    #[napi]
+    pub fn clone(&self) -> Int64 {
+        Int64 {
+            v: self.v
+        }
+    }
 }

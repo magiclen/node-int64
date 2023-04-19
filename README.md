@@ -27,194 +27,243 @@ A JavaScript number can safely represent only from `-(2^53 - 1)` to `2^53 - 1`, 
 
 #### Random
 
-```javascript
-const n = int64.random(9876543210, "12345678901234"); // 5724595911391
+```typescript
+import { random } from "int64-napi";
+
+const n = random(9876543210, "12345678901234"); // 5724595911391
 ```
 
 #### Add
 
-```javascript
-const n = int64.add("0x0000000000000001", 0x00000002); // 1 + 2 = 3
+```typescript
+import { add } from "int64-napi";
+
+const n = add("0x0000000000000001", 0x00000002); // 1 + 2 = 3
 ```
 
 #### Subtract
 
-```javascript
-const n = int64.subtract(1, 2); // 1 - 2 = -1
+```typescript
+import { subtract } from "int64-napi";
+
+const n = subtract(1, 2); // 1 - 2 = -1
 ```
 
 #### multiply
 
-```javascript
-const n = int64.multiply(2, 6); // 2 * 6 = 12
+```typescript
+import { multiply } from "int64-napi";
+
+const n = multiply(2, 6); // 2 * 6 = 12
 ```
 
 #### divide
 
-```javascript
-const n = int64.divide(6, 4); // 6 / 4 = 1
+```typescript
+import { divide } from "int64-napi";
+
+const n = divide(6, 4); // 6 / 4 = 1
 ```
 
 #### mod
 
-```javascript
-const n = int64.mod(6, 4); // 6 % 4 = 2
+```typescript
+import { mod } from "int64-napi";
+
+const n = mod(6, 4); // 6 % 4 = 2
 ```
 
 #### shiftLeft
 
-```javascript
-const n = int64.shiftLeft(0b00101, 2); // 0b000101 << 2 = 0b010100
+```typescript
+import { shiftLeft } from "int64-napi";
+
+const n = shiftLeft(0b00101, 2); // 0b000101 << 2 = 0b010100
 ```
 
 #### shiftRight
 
-```javascript
-const n1 = int64.shiftRight(0b0101, 2); // 0b0101 >> 2 = 0b0001
-const n2 = int64.shiftRight(0b0110, 1); // 0b0110 >> 1 = 0b0011
-const n3 = int64.shiftRight("0b1111111111111111111111111111111111111111111111111111111111111011", 1); // 0b1111111111111111111111111111111111111111111111111111111111111011 >> 1 = 0b1111111111111111111111111111111111111111111111111111111111111101
+```typescript
+import { shiftRight } from "int64-napi";
+
+const n1 = shiftRight(0b0101, 2); // 0b0101 >> 2 = 0b0001
+const n2 = shiftRight(0b0110, 1); // 0b0110 >> 1 = 0b0011
+const n3 = shiftRight("0b1111111111111111111111111111111111111111111111111111111111111011", 1); // 0b1111111111111111111111111111111111111111111111111111111111111011 >> 1 = 0b1111111111111111111111111111111111111111111111111111111111111101
 ```
 
 #### shiftRightUnsigned
 
-```javascript
-const n = int64.shiftRightUnsigned("0b1111111111111111111111111111111111111111111111111111111111111011", 32); // 0b1111111111111111111111111111111111111111111111111111111111111011 >>> 32 = 0b0000000000000000000000000000000011111111111111111111111111111111
+```typescript
+import { shiftRightUnsigned } from "int64-napi";
+
+const n = shiftRightUnsigned("0b1111111111111111111111111111111111111111111111111111111111111011", 32); // 0b1111111111111111111111111111111111111111111111111111111111111011 >>> 32 = 0b0000000000000000000000000000000011111111111111111111111111111111
 ```
 
 #### rotateRight
 
-```javascript
-const n = int64.rotateRight("0x0000000080000100", 20); // 0x0010000000000800
+```typescript
+import { rotateRight } from "int64-napi";
+
+const n = rotateRight("0x0000000080000100", 20); // 0x0010000000000800
 ```
 
 #### rotateLeft
 
-```javascript
-const n = int64.rotateLeft("0x0010000000000800", 20); // 0x0000000080000100
+```typescript
+import { rotateLeft } from "int64-napi";
+
+const n = rotateLeft("0x0010000000000800", 20); // 0x0000000080000100
 ```
 
 #### and
 
-```javascript
-const n = int64.and("0x000000000000FFFF", "0x0123456789ABCDEF"); // 0x000000000000CDEF
+```typescript
+import { and } from "int64-napi";
+
+const n = and("0x000000000000FFFF", "0x0123456789ABCDEF"); // 0x000000000000CDEF
 ```
 
 #### or
 
-```javascript
-const n = int64.or("0x0000FFFF0000FFFF", "0xFFFFFFFFFFFF0000"); // 0xFFFFFFFFFFFFFFFF
+```typescript
+import { or } from "int64-napi";
+
+const n = or("0x0000FFFF0000FFFF", "0xFFFFFFFFFFFF0000"); // 0xFFFFFFFFFFFFFFFF
 ```
 
 #### xor
 
-```javascript
-const n = int64.xor("0x0000FFFF0000FFFF", "0xFFFFFFFFFFFF0000"); // 0xFFFF0000FFFFFFFF
+```typescript
+import { xor } from "int64-napi";
+
+const n = xor("0x0000FFFF0000FFFF", "0xFFFFFFFFFFFF0000"); // 0xFFFF0000FFFFFFFF
 ```
 
 #### nand
 
-```javascript
-const n = int64.nand("0x000000000000FFFF", "0x0123456789ABCDEF"); // 0xFFFFFFFFFFFF3210
+```typescript
+import { nand } from "int64-napi";
+
+const n = nand("0x000000000000FFFF", "0x0123456789ABCDEF"); // 0xFFFFFFFFFFFF3210
 ```
 
 #### nor
 
-```javascript
-const n = int64.nor("0x0000FFFF0000FFFF", "0xFFFFFFFFFFFF0000"); // 0x0000000000000000
+```typescript
+import { nor } from "int64-napi";
+
+const n = nor("0x0000FFFF0000FFFF", "0xFFFFFFFFFFFF0000"); // 0x0000000000000000
 ```
 
 #### xnor
 
-```javascript
-const n = int64.xnor("0x0000FFFF0000FFFF", "0xFFFFFFFFFFFF0000"); // 0x0000FFFF00000000
+```typescript
+import { xnor } from "int64-napi";
+
+const n = xnor("0x0000FFFF0000FFFF", "0xFFFFFFFFFFFF0000"); // 0x0000FFFF00000000
 ```
 
 #### not
 
-```javascript
-const n = int64.nor("0x0000FFFF0000FFFF", "0xFFFFFFFFFFFF0000"); // 0x0000000000000000
+```typescript
+import { nor } from "int64-napi";
+
+const n = nor("0x0000FFFF0000FFFF", "0xFFFFFFFFFFFF0000"); // 0x0000000000000000
 ```
 
 #### eq (Equal)
 
-```javascript
-const n = int64.eq("0x0000FFFF0000FFFF", "281470681808895"); // true
+```typescript
+import { eq } from "int64-napi";
+
+const n = eq("0x0000FFFF0000FFFF", "281470681808895"); // true
 ```
 
 #### ne (Not Equal)
 
-```javascript
-const n = int64.ne("0x0000FFFF0000FFFF", "0x0000FFFF00000000"); // true
+```typescript
+import { ne } from "int64-napi";
+
+const n = ne("0x0000FFFF0000FFFF", "0x0000FFFF00000000"); // true
 ```
 
 #### gt (Greater Than)
 
-```javascript
-const n = int64.gt("0x0000FFFF0000FFFF", "0x0000FFFF00000000"); // true
+```typescript
+import { gt } from "int64-napi";
+
+const n = gt("0x0000FFFF0000FFFF", "0x0000FFFF00000000"); // true
 ```
 
 #### gte (Greater Than or Equal)
 
-```javascript
-const n = int64.gte("0x0000FFFF0000FFFF", "0x0000FFFF00000000"); // true
+```typescript
+import { gte } from "int64-napi";
+
+const n = gte("0x0000FFFF0000FFFF", "0x0000FFFF00000000"); // true
 ```
 
 #### lt (Less Than)
 
-```javascript
-const n = int64.lt("0x0000FFFF0000FFFF", "0x0000FFFF0000FFFF"); // false
+```typescript
+import { lt } from "int64-napi";
+
+const n = lt("0x0000FFFF0000FFFF", "0x0000FFFF0000FFFF"); // false
 ```
 
 #### lte (Less Than or Equal)
 
-```javascript
-const n = int64.lte("0x0000FFFF0000FFFF", "0x0000FFFF0000FFFF"); // true
+```typescript
+import { lte } from "int64-napi";
+
+const n = lte("0x0000FFFF0000FFFF", "0x0000FFFF0000FFFF"); // true
 ```
 
 #### comp (Compare)
 
-If the first one is bigger than the second one, returns `1`.
+If `a < b`, returns `-1`.
 
-If the first one is smaller than the second one, returns `-1`.
+If `a === b`, returns `0`.
 
-If the first one is equal to the second one, returns `0`.
+If `a > b`, returns `1`.
 
-```javascript
-const a = int64.comp("0x0000FFFF0000FFFF", "0x0000FFFF0000FFFF"); // 0
-const b = int64.comp("0x0000FFFF0000FFFF", "0x0000FFFF00000000"); // 1
-const c = int64.comp("0x0000FFFF00000000", "0x0000FFFF0000FFFF"); // -1
+```typescript
+import { comp } from "int64-napi";
+
+const a = comp("0x0000FFFF0000FFFF", "0x0000FFFF0000FFFF"); // 0
+const b = comp("0x0000FFFF0000FFFF", "0x0000FFFF00000000"); // 1
+const c = comp("0x0000FFFF00000000", "0x0000FFFF0000FFFF"); // -1
 ```
 
 ### Instance / Object
 
 #### Create an Instance
 
-```javascript
-const Int64 = int64.Int64;
+```typescript
+import { Int64 } from "int64-napi";
 
 const i64 = new Int64(1);
-```
-
-or
-
-```javascript
-const Int64 = int64.Int64;
-
-const i64 = Int64.from(1);
 ```
 
 #### Methods
 
 `Int64` instance has methods which are corresponding to static functions. `Int64` instances are mutable and reusable, which means operations may modify its value.
 
-```javascript
+```typescript
+import { Int64 } from "int64-napi";
+
+const i64 = new Int64(1);
 const n1 = i64.add(1).multiply(3).subtract(3).divide(3).toDecimal(); // "1"
+
 i64.set("0xFFFF000000000000");
 const n2 = i64.shiftLeft(8).shiftRight(56).toHex(true); // "0xffffffffffffffff"
+
 i64.set("0xFFFF000000000000");
 const n3 = i64.shiftLeft(8).shiftRightUnsigned(56).toHex(true); // "0x00000000000000ff"
+
 i64.set("0x000000010001");
 const n4 = i64.rotateRight(8).toHex(true); // "0x0100000000000100"
+
 i64.set("0x0000FFFFFFFF0000");
 const n51 = i64.toHex(true); // "0x0000ffffffff0000"
 const n52 = i64.toHex(); // "ffffffff0000"
@@ -224,10 +273,9 @@ const n54 = i64.toNumber() + 1; // 281474976645121
 
 To clone an `Int64` instance.
 
-```javascript
+```typescript
 const i64_2 = i64.clone();
 ```
-
 
 ## License
 
