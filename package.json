@@ -1,6 +1,6 @@
 {
   "name": "int64-napi",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "Use Rust to compute 64-bit signed integers.",
   "type": "module",
   "exports": "./lib/lib.js",
@@ -11,6 +11,7 @@
   "files": [
     "lib",
     "src",
+    "build.rs",
     "Cargo.toml"
   ],
   "scripts": {
