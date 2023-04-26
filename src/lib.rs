@@ -43,7 +43,7 @@ impl Int64 {
     pub fn new(
         env: Env,
         #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Option<
-            Either4<&Int64, i64, String, Buffer>,
+            Either<&Int64, Unknown>,
         >,
     ) -> Result<Self> {
         match value {
@@ -136,12 +136,7 @@ impl Int64 {
         &mut self,
         this: This,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either4<
-            &Int64,
-            i64,
-            String,
-            Buffer,
-        >,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
     ) -> Result<This> {
         let v = to_i64(&env, value)?;
 
@@ -156,12 +151,7 @@ impl Int64 {
         &mut self,
         this: This,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either4<
-            &Int64,
-            i64,
-            String,
-            Buffer,
-        >,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
     ) -> Result<This> {
         let a = self.v;
         let b = to_i64(&env, value)?;
@@ -177,12 +167,7 @@ impl Int64 {
         &mut self,
         this: This,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either4<
-            &Int64,
-            i64,
-            String,
-            Buffer,
-        >,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
     ) -> Result<This> {
         let a = self.v;
         let b = to_i64(&env, value)?;
@@ -198,12 +183,7 @@ impl Int64 {
         &mut self,
         this: This,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either4<
-            &Int64,
-            i64,
-            String,
-            Buffer,
-        >,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
     ) -> Result<This> {
         let a = self.v;
         let b = to_i64(&env, value)?;
@@ -219,12 +199,7 @@ impl Int64 {
         &mut self,
         this: This,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either4<
-            &Int64,
-            i64,
-            String,
-            Buffer,
-        >,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
     ) -> Result<This> {
         let a = self.v;
         let b = to_i64(&env, value)?;
@@ -240,12 +215,7 @@ impl Int64 {
         &mut self,
         this: This,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either4<
-            &Int64,
-            i64,
-            String,
-            Buffer,
-        >,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
     ) -> Result<This> {
         let a = self.v;
         let b = to_i64(&env, value)?;
@@ -263,12 +233,7 @@ impl Int64 {
         &mut self,
         this: This,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either4<
-            &Int64,
-            i64,
-            String,
-            Buffer,
-        >,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
     ) -> Result<This> {
         let a = self.v;
         let b = to_i64(&env, value)?;
@@ -302,12 +267,7 @@ impl Int64 {
         &mut self,
         this: This,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either4<
-            &Int64,
-            i64,
-            String,
-            Buffer,
-        >,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
     ) -> Result<This> {
         let a = self.v;
         let b = to_i64(&env, value)?;
@@ -338,12 +298,7 @@ impl Int64 {
         &mut self,
         this: This,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either4<
-            &Int64,
-            i64,
-            String,
-            Buffer,
-        >,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
     ) -> Result<This> {
         let a = self.v;
         let b = to_i64(&env, value)?;
@@ -374,12 +329,7 @@ impl Int64 {
         &mut self,
         this: This,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either4<
-            &Int64,
-            i64,
-            String,
-            Buffer,
-        >,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
     ) -> Result<This> {
         let a = self.v;
         let b = to_i64(&env, value)?;
@@ -410,12 +360,7 @@ impl Int64 {
         &mut self,
         this: This,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either4<
-            &Int64,
-            i64,
-            String,
-            Buffer,
-        >,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
     ) -> Result<This> {
         let a = self.v;
         let b = to_i64(&env, value)?;
@@ -449,12 +394,7 @@ impl Int64 {
         &mut self,
         this: This,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either4<
-            &Int64,
-            i64,
-            String,
-            Buffer,
-        >,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
     ) -> Result<This> {
         let a = self.v;
         let b = to_i64(&env, value)?;
@@ -486,12 +426,7 @@ impl Int64 {
         &mut self,
         this: This,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either4<
-            &Int64,
-            i64,
-            String,
-            Buffer,
-        >,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
     ) -> Result<This> {
         self.v &= to_i64(&env, value)?;
 
@@ -504,12 +439,7 @@ impl Int64 {
         &mut self,
         this: This,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either4<
-            &Int64,
-            i64,
-            String,
-            Buffer,
-        >,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
     ) -> Result<This> {
         self.v |= to_i64(&env, value)?;
 
@@ -522,12 +452,7 @@ impl Int64 {
         &mut self,
         this: This,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either4<
-            &Int64,
-            i64,
-            String,
-            Buffer,
-        >,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
     ) -> Result<This> {
         self.v ^= to_i64(&env, value)?;
 
@@ -540,12 +465,7 @@ impl Int64 {
         &mut self,
         this: This,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either4<
-            &Int64,
-            i64,
-            String,
-            Buffer,
-        >,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
     ) -> Result<This> {
         self.v = !(self.v & to_i64(&env, value)?);
 
@@ -558,12 +478,7 @@ impl Int64 {
         &mut self,
         this: This,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either4<
-            &Int64,
-            i64,
-            String,
-            Buffer,
-        >,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
     ) -> Result<This> {
         self.v = !(self.v | to_i64(&env, value)?);
 
@@ -576,12 +491,7 @@ impl Int64 {
         &mut self,
         this: This,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either4<
-            &Int64,
-            i64,
-            String,
-            Buffer,
-        >,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
     ) -> Result<This> {
         self.v = !(self.v ^ to_i64(&env, value)?);
 
@@ -609,12 +519,7 @@ impl Int64 {
     pub fn eq(
         &self,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either4<
-            &Int64,
-            i64,
-            String,
-            Buffer,
-        >,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
     ) -> Result<bool> {
         let a = self.v;
         let b = to_i64(&env, value)?;
@@ -627,12 +532,7 @@ impl Int64 {
     pub fn ne(
         &self,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either4<
-            &Int64,
-            i64,
-            String,
-            Buffer,
-        >,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
     ) -> Result<bool> {
         let a = self.v;
         let b = to_i64(&env, value)?;
@@ -645,12 +545,7 @@ impl Int64 {
     pub fn gt(
         &self,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either4<
-            &Int64,
-            i64,
-            String,
-            Buffer,
-        >,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
     ) -> Result<bool> {
         let a = self.v;
         let b = to_i64(&env, value)?;
@@ -663,12 +558,7 @@ impl Int64 {
     pub fn gte(
         &self,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either4<
-            &Int64,
-            i64,
-            String,
-            Buffer,
-        >,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
     ) -> Result<bool> {
         let a = self.v;
         let b = to_i64(&env, value)?;
@@ -681,12 +571,7 @@ impl Int64 {
     pub fn lt(
         &self,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either4<
-            &Int64,
-            i64,
-            String,
-            Buffer,
-        >,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
     ) -> Result<bool> {
         let a = self.v;
         let b = to_i64(&env, value)?;
@@ -699,12 +584,7 @@ impl Int64 {
     pub fn lte(
         &self,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either4<
-            &Int64,
-            i64,
-            String,
-            Buffer,
-        >,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
     ) -> Result<bool> {
         let a = self.v;
         let b = to_i64(&env, value)?;
@@ -719,12 +599,7 @@ impl Int64 {
     pub fn comp(
         &self,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either4<
-            &Int64,
-            i64,
-            String,
-            Buffer,
-        >,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
     ) -> Result<Ordering> {
         let a = self.v;
         let b = to_i64(&env, value)?;
@@ -738,12 +613,7 @@ impl Int64 {
         &mut self,
         this: This,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either4<
-            &Int64,
-            i64,
-            String,
-            Buffer,
-        >,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
     ) -> Result<This> {
         let a = self.v;
         let b = to_i64(&env, value)?;
