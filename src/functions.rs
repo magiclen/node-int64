@@ -1,6 +1,6 @@
 use std::num::ParseIntError;
 
-use napi::{bindgen_prelude::*, JsBuffer};
+use napi::bindgen_prelude::*;
 
 use crate::Int64;
 
@@ -29,49 +29,29 @@ pub(crate) fn string_to_i64<S: AsRef<str>>(s: S) -> std::result::Result<i64, Par
     s.parse()
 }
 
-fn to_i64_inner(value: Either<&Int64, Unknown>) -> Result<i64> {
+fn to_i64_inner(value: Either4<&Int64, i64, String, Buffer>) -> Result<i64> {
     match value {
-        Either::A(int64) => Ok(int64.v),
-        Either::B(value) => {
-            let typ = value.get_type()?;
+        Either4::A(int64) => Ok(int64.v),
+        Either4::B(value) => Ok(value),
+        Either4::C(value) => {
+            string_to_i64(value).map_err(|err| Error::from_reason(err.to_string()))
+        },
+        Either4::D(value) => {
+            let data = value.as_ref();
 
-            match typ {
-                ValueType::Number => value.coerce_to_number()?.get_int64(),
-                ValueType::String => {
-                    string_to_i64(value.coerce_to_string()?.into_utf8()?.as_str()?)
-                        .map_err(|err| Error::from_reason(err.to_string()))
-                },
-                ValueType::Object => {
-                    if value.is_buffer()? {
-                        let buffer = unsafe { value.cast::<JsBuffer>() };
-
-                        let buffer_value = buffer.into_value()?;
-                        let data = buffer_value.as_ref();
-
-                        if data.len() == 8 {
-                            Ok(i64::from_le_bytes([
-                                data[0], data[1], data[2], data[3], data[4], data[5], data[6],
-                                data[7],
-                            ]))
-                        } else {
-                            Err(Error::from_reason("the length of the input buffer is not 8"))
-                        }
-                    } else {
-                        Err(Error::from_reason(
-                            "the int64 (long) value is an object, but it's not a buffer",
-                        ))
-                    }
-                },
-                _ => Err(Error::from_reason(
-                    "an int64 (long) value should be a number, a string or an object",
-                )),
+            if data.len() == 8 {
+                Ok(i64::from_le_bytes([
+                    data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7],
+                ]))
+            } else {
+                Err(Error::from_reason("the length of the input buffer is not 8"))
             }
         },
     }
 }
 
 #[inline]
-pub(crate) fn to_i64(env: &Env, value: Either<&Int64, Unknown>) -> Result<i64> {
+pub(crate) fn to_i64(env: &Env, value: Either4<&Int64, i64, String, Buffer>) -> Result<i64> {
     match to_i64_inner(value) {
         Ok(value) => Ok(value),
         Err(error) => {
