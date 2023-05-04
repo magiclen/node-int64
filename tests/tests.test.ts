@@ -3,7 +3,7 @@ import {
     subtract,
     gt,
     Int64,
-} from "../src/lib";
+} from "../src/lib.js";
 
 describe("Add", function () {
     it("should add", function () {
