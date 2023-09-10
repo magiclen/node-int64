@@ -66,6 +66,13 @@ impl Int64 {
         format!("{}", self.v)
     }
 
+    #[allow(clippy::inherent_to_string)]
+    /// To a decimal number in a string.
+    #[napi(js_name = "toString")]
+    pub fn to_string(&self) -> String {
+        self.to_decimal()
+    }
+
     /// To a binary number in a string.
     #[napi(js_name = "toBinary")]
     pub fn to_binary(&self, format: Option<bool>) -> String {
