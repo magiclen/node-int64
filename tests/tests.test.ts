@@ -1,8 +1,8 @@
 import {
-    add,
-    subtract,
-    gt,
     Int64,
+    add,
+    gt,
+    subtract,
 } from "../src/lib.js";
 
 describe("Add", function () {

@@ -1,60 +1,62 @@
 {
-  "name": "int64-napi",
-  "version": "3.0.3",
-  "description": "Use Rust to compute 64-bit signed integers.",
-  "type": "module",
-  "exports": "./lib/lib.js",
-  "types": "./lib/lib.d.ts",
-  "engines": {
-    "node": ">=16"
-  },
-  "files": [
-    "lib",
-    "src",
-    "build.rs",
-    "Cargo.toml"
-  ],
-  "scripts": {
-    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
-    "test:coverage": "node --experimental-vm-modules  node_modules/jest/bin/jest.js --coverage",
-    "test:inspect-brk": "node --experimental-vm-modules --inspect-brk=0.0.0.0:9230 node_modules/jest/bin/jest.js --testTimeout 0 --runInBand",
-    "clean": "rimraf lib",
-    "install": "napi build --release --platform --js index.cjs --dts index.d.cts",
-    "build": "npm run clean && npm run install && tsc -p tsconfig.build.json",
-    "build:watch": "npm run build -- -w",
-    "lint": "eslint src tests",
-    "lint:fix": "npm run lint -- --fix",
-    "prepare": "git config core.hooksPath .githooks || exit 0",
-    "prepack": "npm run build",
-    "prepublishOnly": "npm run lint && npm run test"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/magiclen/node-int64.git"
-  },
-  "keywords": [
-    "int64",
-    "long",
-    "nodejs"
-  ],
-  "author": "Magic Len",
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/magiclen/node-int64/issues"
-  },
-  "homepage": "https://magiclen.org/node-js-int64/",
-  "devDependencies": {
-    "@types/jest": "^29.5.4",
-    "@types/node": "^20.6.0",
-    "@typescript-eslint/eslint-plugin": "^6.6.0",
-    "@typescript-eslint/parser": "^6.6.0",
-    "eslint": "^8.49.0",
-    "jest": "^29.6.4",
-    "rimraf": "^5.0.1",
-    "ts-jest": "^29.1.1",
-    "typescript": "^5.2.2"
-  },
-  "dependencies": {
-    "@napi-rs/cli": "^2.16.3"
-  }
+    "name": "int64-napi",
+    "version": "3.0.4",
+    "description": "Use Rust to compute 64-bit signed integers.",
+    "type": "module",
+    "exports": "./lib/lib.js",
+    "types": "./lib/lib.d.ts",
+    "engines": {
+        "node": ">=16"
+    },
+    "files": [
+        "lib",
+        "src",
+        "build.rs",
+        "Cargo.toml"
+    ],
+    "scripts": {
+        "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+        "test:coverage": "node --experimental-vm-modules  node_modules/jest/bin/jest.js --coverage",
+        "test:inspect-brk": "node --experimental-vm-modules --inspect-brk=0.0.0.0:9230 node_modules/jest/bin/jest.js --testTimeout 0 --runInBand",
+        "clean": "rimraf lib",
+        "install": "napi build --release --platform --js index.cjs --dts index.d.cts",
+        "build": "npm run clean && npm run install && tsc -p tsconfig.build.json",
+        "build:watch": "npm run build -- -w",
+        "lint": "eslint src tests",
+        "lint:fix": "npm run lint -- --fix",
+        "prepare": "git config core.hooksPath .githooks || exit 0",
+        "prepack": "npm run build",
+        "prepublishOnly": "npm run lint && npm run test"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/magiclen/node-int64.git"
+    },
+    "keywords": [
+        "int64",
+        "long",
+        "nodejs"
+    ],
+    "author": "Magic Len",
+    "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/magiclen/node-int64/issues"
+    },
+    "homepage": "https://magiclen.org/node-js-int64/",
+    "devDependencies": {
+        "@types/jest": "^29.5.5",
+        "@types/node": "^20.8.2",
+        "@typescript-eslint/eslint-plugin": "^6.7.4",
+        "@typescript-eslint/parser": "^6.7.4",
+        "eslint": "^8.50.0",
+        "eslint-import-resolver-typescript": "^3.6.1",
+        "eslint-plugin-import": "^2.28.1",
+        "jest": "^29.7.0",
+        "rimraf": "^5.0.5",
+        "ts-jest": "^29.1.1",
+        "typescript": "^5.2.2"
+    },
+    "dependencies": {
+        "@napi-rs/cli": "^2.16.3"
+    }
 }
