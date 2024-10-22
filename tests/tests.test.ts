@@ -1,12 +1,9 @@
 import {
-    Int64,
-    add,
-    gt,
-    subtract,
+    Int64, add, gt, subtract,
 } from "../src/lib.js";
 
-describe("Add", function () {
-    it("should add", function () {
+describe("Add", () => {
+    it("should add", () => {
         let n: number | Int64 = 0;
 
         for (let i = 0;i < 10000;++i) {
@@ -25,8 +22,8 @@ describe("Add", function () {
     });
 });
 
-describe("Subtract", function () {
-    it("should subtract", function () {
+describe("Subtract", () => {
+    it("should subtract", () => {
         let n: number | Int64 = 0;
 
         for (let i = 0;i < 10000;++i) {
@@ -45,8 +42,8 @@ describe("Subtract", function () {
     });
 });
 
-describe("Multiply", function () {
-    it("should multiply", function () {
+describe("Multiply", () => {
+    it("should multiply", () => {
         const n = new Int64(1);
 
         for (let i = 1;i < 20;++i) {
@@ -61,8 +58,8 @@ describe("Multiply", function () {
     });
 });
 
-describe("Divide", function () {
-    it("should divide", function () {
+describe("Divide", () => {
+    it("should divide", () => {
         const n = new Int64("243290200817664000");
 
         n.divide(20);
@@ -75,8 +72,8 @@ describe("Divide", function () {
     });
 });
 
-describe("Mod", function () {
-    it("should mod", function () {
+describe("Mod", () => {
+    it("should mod", () => {
         const n = new Int64("894453210654871");
 
         n.mod(8);
@@ -89,8 +86,8 @@ describe("Mod", function () {
     });
 });
 
-describe("Negative", function () {
-    it("should negative", function () {
+describe("Negative", () => {
+    it("should negative", () => {
         const n = new Int64("894453210654871");
 
         n.negative();
@@ -103,8 +100,8 @@ describe("Negative", function () {
     });
 });
 
-describe("Gt", function () {
-    it("should greater than", function () {
+describe("Gt", () => {
+    it("should greater than", () => {
         const a = new Int64("894453210654871");
         const b = new Int64("894453210654870");
 
