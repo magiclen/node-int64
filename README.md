@@ -5,7 +5,15 @@ Int64
 
 Use Rust to compute 64-bit signed integers.
 
-You need to set up the Rust development environment: [rustup](https://rustup.rs/)
+## Requirements and Installation
+
+Node.js 24 or later and Rust 1.88.0 or later are required. Install Rust with [rustup](https://rustup.rs/) and the native linker for your platform (a C compiler on Linux/macOS or the MSVC build tools on Windows).
+
+```sh
+npm install int64-napi
+```
+
+Installation compiles the native module from source using the included `Cargo.lock`. Package managers that block dependency build scripts must allow the `int64-napi` install script; for pnpm, approve `int64-napi` with `pnpm approve-builds` and rebuild it with `pnpm rebuild int64-napi`. If npm requires script approval, use `npm install-scripts approve int64-napi` followed by `npm rebuild int64-napi`.
 
 ## Usage
 
@@ -96,7 +104,10 @@ const n3 = shiftRight("0b1111111111111111111111111111111111111111111111111111111
 ```typescript
 import { shiftRightUnsigned } from "int64-napi";
 
-const n = shiftRightUnsigned("0b1111111111111111111111111111111111111111111111111111111111111011", 32); // 0b1111111111111111111111111111111111111111111111111111111111111011 >>> 32 = 0b0000000000000000000000000000000011111111111111111111111111111111
+const n = shiftRightUnsigned(
+    "0b1111111111111111111111111111111111111111111111111111111111111011",
+    32,
+); // 0b1111111111111111111111111111111111111111111111111111111111111011 >>> 32 = 0b0000000000000000000000000000000011111111111111111111111111111111
 ```
 
 #### rotateRight

@@ -1,0 +1,7 @@
+{
+    "$schema": "./node_modules/oxfmt/configuration_schema.json",
+
+    "jsdoc": false,
+    "sortImports": true,
+    "tabWidth": 4,
+}
