@@ -1,8 +1,14 @@
 mod functions;
 mod napi_static;
 
-use functions::*;
-use napi::bindgen_prelude::*;
+use functions::{
+    EXPONENT, Int64Value, ROTATION_BIT_COUNT, SHIFT_BIT_COUNT, divide_i64, modulo_i64, random_i64,
+    range_error, to_i64, to_u32,
+};
+use napi::{
+    Env, Result,
+    bindgen_prelude::{Buffer, This},
+};
 use napi_derive::napi;
 pub use napi_static::*;
 
@@ -42,9 +48,7 @@ impl Int64 {
     #[napi(constructor)]
     pub fn new(
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Option<
-            Either<&Int64, Unknown>,
-        >,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Option<Int64Value<'_>>,
     ) -> Result<Self> {
         match value {
             Some(value) => {
@@ -76,21 +80,13 @@ impl Int64 {
     /// To a binary number in a string.
     #[napi(js_name = "toBinary")]
     pub fn to_binary(&self, format: Option<bool>) -> String {
-        if format.unwrap_or(false) {
-            format!("{:#066b}", self.v)
-        } else {
-            format!("{:b}", self.v)
-        }
+        if format.unwrap_or(false) { format!("{:#066b}", self.v) } else { format!("{:b}", self.v) }
     }
 
     /// To a octal number in a string.
     #[napi(js_name = "toOctal")]
     pub fn to_octal(&self, format: Option<bool>) -> String {
-        if format.unwrap_or(false) {
-            format!("{:#024o}", self.v)
-        } else {
-            format!("{:o}", self.v)
-        }
+        if format.unwrap_or(false) { format!("{:#024o}", self.v) } else { format!("{:o}", self.v) }
     }
 
     /// To a hex number in a string.
@@ -119,19 +115,9 @@ impl Int64 {
     #[napi(js_name = "toNumber")]
     pub fn to_number(&self, env: Env) -> Result<i64> {
         if self.v > MAX_SAFE_INTEGER {
-            env.throw_range_error(
-                format!("{} is bigger than {MAX_SAFE_INTEGER}", self.v).as_str(),
-                None,
-            )?;
-
-            Err(Error::from_reason(""))
+            Err(range_error(&env, &format!("{} is bigger than {MAX_SAFE_INTEGER}", self.v)))
         } else if self.v < MIN_SAFE_INTEGER {
-            env.throw_range_error(
-                format!("{} is smaller than {MIN_SAFE_INTEGER}", self.v).as_str(),
-                None,
-            )?;
-
-            Err(Error::from_reason(""))
+            Err(range_error(&env, &format!("{} is smaller than {MIN_SAFE_INTEGER}", self.v)))
         } else {
             Ok(self.v)
         }
@@ -139,12 +125,12 @@ impl Int64 {
 
     /// Sets the value of this instance.
     #[napi]
-    pub fn set(
+    pub fn set<'env>(
         &mut self,
-        this: This,
+        this: This<'env>,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
-    ) -> Result<This> {
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Int64Value<'_>,
+    ) -> Result<This<'env>> {
         let v = to_i64(&env, value)?;
 
         self.v = v;
@@ -154,12 +140,12 @@ impl Int64 {
 
     /// Computes `self += value`, wrapping around at the boundary of an 64-bit integer.
     #[napi]
-    pub fn add(
+    pub fn add<'env>(
         &mut self,
-        this: This,
+        this: This<'env>,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
-    ) -> Result<This> {
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Int64Value<'_>,
+    ) -> Result<This<'env>> {
         let a = self.v;
         let b = to_i64(&env, value)?;
 
@@ -170,12 +156,12 @@ impl Int64 {
 
     /// Computes `self -= value`, wrapping around at the boundary of an 64-bit integer.
     #[napi]
-    pub fn subtract(
+    pub fn subtract<'env>(
         &mut self,
-        this: This,
+        this: This<'env>,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
-    ) -> Result<This> {
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Int64Value<'_>,
+    ) -> Result<This<'env>> {
         let a = self.v;
         let b = to_i64(&env, value)?;
 
@@ -186,12 +172,12 @@ impl Int64 {
 
     /// Computes `self *= value`, wrapping around at the boundary of an 64-bit integer.
     #[napi]
-    pub fn multiply(
+    pub fn multiply<'env>(
         &mut self,
-        this: This,
+        this: This<'env>,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
-    ) -> Result<This> {
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Int64Value<'_>,
+    ) -> Result<This<'env>> {
         let a = self.v;
         let b = to_i64(&env, value)?;
 
@@ -201,33 +187,37 @@ impl Int64 {
     }
 
     /// Computes `self /= value`, wrapping around at the boundary of an 64-bit integer.
+    ///
+    /// `value` must not be zero
     #[napi]
-    pub fn divide(
+    pub fn divide<'env>(
         &mut self,
-        this: This,
+        this: This<'env>,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
-    ) -> Result<This> {
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Int64Value<'_>,
+    ) -> Result<This<'env>> {
         let a = self.v;
         let b = to_i64(&env, value)?;
 
-        self.v = a.wrapping_div(b);
+        self.v = divide_i64(&env, a, b)?;
 
         Ok(this)
     }
 
     /// Computes `self %= value`, wrapping around at the boundary of an 64-bit integer.
+    ///
+    /// `value` must not be zero
     #[napi(js_name = "mod")]
-    pub fn modulo(
+    pub fn modulo<'env>(
         &mut self,
-        this: This,
+        this: This<'env>,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
-    ) -> Result<This> {
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Int64Value<'_>,
+    ) -> Result<This<'env>> {
         let a = self.v;
         let b = to_i64(&env, value)?;
 
-        self.v = a.wrapping_rem(b);
+        self.v = modulo_i64(&env, a, b)?;
 
         Ok(this)
     }
@@ -236,32 +226,17 @@ impl Int64 {
     ///
     /// `b` must not be smaller than zero
     #[napi]
-    pub fn pow(
+    pub fn pow<'env>(
         &mut self,
-        this: This,
+        this: This<'env>,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
-    ) -> Result<This> {
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Int64Value<'_>,
+    ) -> Result<This<'env>> {
         let a = self.v;
         let b = to_i64(&env, value)?;
+        let b = to_u32(&env, b, EXPONENT)?;
 
-        if b < 0 {
-            env.throw_range_error(
-                "the exponent of an integer number must not be smaller than zero",
-                None,
-            )?;
-
-            return Err(Error::from_reason(""));
-        } else if b > u32::MAX as i64 {
-            env.throw_range_error(
-                &format!("the exponent of an integer number must not be bigger than {}", u32::MAX),
-                None,
-            )?;
-
-            return Err(Error::from_reason(""));
-        }
-
-        self.v = a.wrapping_pow(b as u32);
+        self.v = a.wrapping_pow(b);
 
         Ok(this)
     }
@@ -270,29 +245,17 @@ impl Int64 {
     ///
     /// `b` must not be smaller than zero
     #[napi(js_name = "shiftLeft")]
-    pub fn shift_left(
+    pub fn shift_left<'env>(
         &mut self,
-        this: This,
+        this: This<'env>,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
-    ) -> Result<This> {
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Int64Value<'_>,
+    ) -> Result<This<'env>> {
         let a = self.v;
         let b = to_i64(&env, value)?;
+        let b = to_u32(&env, b, SHIFT_BIT_COUNT)?;
 
-        if b < 0 {
-            env.throw_range_error("the bit count for shift must not be smaller than zero", None)?;
-
-            return Err(Error::from_reason(""));
-        } else if b > u32::MAX as i64 {
-            env.throw_range_error(
-                &format!("the bit count for shift must not be bigger than {}", u32::MAX),
-                None,
-            )?;
-
-            return Err(Error::from_reason(""));
-        }
-
-        self.v = a.wrapping_shl(b as u32);
+        self.v = a.wrapping_shl(b);
 
         Ok(this)
     }
@@ -301,29 +264,17 @@ impl Int64 {
     ///
     /// `b` must not be smaller than zero
     #[napi(js_name = "shiftRight")]
-    pub fn shift_right(
+    pub fn shift_right<'env>(
         &mut self,
-        this: This,
+        this: This<'env>,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
-    ) -> Result<This> {
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Int64Value<'_>,
+    ) -> Result<This<'env>> {
         let a = self.v;
         let b = to_i64(&env, value)?;
+        let b = to_u32(&env, b, SHIFT_BIT_COUNT)?;
 
-        if b < 0 {
-            env.throw_range_error("the bit count for shift must not be smaller than zero", None)?;
-
-            return Err(Error::from_reason(""));
-        } else if b > u32::MAX as i64 {
-            env.throw_range_error(
-                &format!("the bit count for shift must not be bigger than {}", u32::MAX),
-                None,
-            )?;
-
-            return Err(Error::from_reason(""));
-        }
-
-        self.v = a.wrapping_shr(b as u32);
+        self.v = a.wrapping_shr(b);
 
         Ok(this)
     }
@@ -332,29 +283,17 @@ impl Int64 {
     ///
     /// `b` must not be smaller than zero
     #[napi(js_name = "shiftRightUnsigned")]
-    pub fn shift_right_unsigned(
+    pub fn shift_right_unsigned<'env>(
         &mut self,
-        this: This,
+        this: This<'env>,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
-    ) -> Result<This> {
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Int64Value<'_>,
+    ) -> Result<This<'env>> {
         let a = self.v;
         let b = to_i64(&env, value)?;
+        let b = to_u32(&env, b, SHIFT_BIT_COUNT)?;
 
-        if b < 0 {
-            env.throw_range_error("the bit count for shift must not be smaller than zero", None)?;
-
-            return Err(Error::from_reason(""));
-        } else if b > u32::MAX as i64 {
-            env.throw_range_error(
-                &format!("the bit count for shift must not be bigger than {}", u32::MAX),
-                None,
-            )?;
-
-            return Err(Error::from_reason(""));
-        }
-
-        self.v = (a as u64).wrapping_shr(b as u32) as i64;
+        self.v = (a as u64).wrapping_shr(b) as i64;
 
         Ok(this)
     }
@@ -363,32 +302,17 @@ impl Int64 {
     ///
     /// `b` must not be smaller than zero
     #[napi(js_name = "rotateLeft")]
-    pub fn rotate_left(
+    pub fn rotate_left<'env>(
         &mut self,
-        this: This,
+        this: This<'env>,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
-    ) -> Result<This> {
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Int64Value<'_>,
+    ) -> Result<This<'env>> {
         let a = self.v;
         let b = to_i64(&env, value)?;
+        let b = to_u32(&env, b, ROTATION_BIT_COUNT)?;
 
-        if b < 0 {
-            env.throw_range_error(
-                "the bit count for rotation must not be smaller than zero",
-                None,
-            )?;
-
-            return Err(Error::from_reason(""));
-        } else if b > u32::MAX as i64 {
-            env.throw_range_error(
-                &format!("the bit count for rotation must not be bigger than {}", u32::MAX),
-                None,
-            )?;
-
-            return Err(Error::from_reason(""));
-        }
-
-        self.v = a.rotate_left(b as u32);
+        self.v = a.rotate_left(b);
 
         Ok(this)
     }
@@ -397,44 +321,29 @@ impl Int64 {
     ///
     /// `b` must not be smaller than zero
     #[napi(js_name = "rotateRight")]
-    pub fn rotate_right(
+    pub fn rotate_right<'env>(
         &mut self,
-        this: This,
+        this: This<'env>,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
-    ) -> Result<This> {
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Int64Value<'_>,
+    ) -> Result<This<'env>> {
         let a = self.v;
         let b = to_i64(&env, value)?;
+        let b = to_u32(&env, b, ROTATION_BIT_COUNT)?;
 
-        if b < 0 {
-            env.throw_range_error(
-                "the bit count for rotation must not be smaller than zero",
-                None,
-            )?;
-
-            return Err(Error::from_reason(""));
-        } else if b > u32::MAX as i64 {
-            env.throw_range_error(
-                &format!("the bit count for rotation must not be bigger than {}", u32::MAX),
-                None,
-            )?;
-
-            return Err(Error::from_reason(""));
-        }
-
-        self.v = a.rotate_right(b as u32);
+        self.v = a.rotate_right(b);
 
         Ok(this)
     }
 
     /// Computes `self &= value`.
     #[napi]
-    pub fn and(
+    pub fn and<'env>(
         &mut self,
-        this: This,
+        this: This<'env>,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
-    ) -> Result<This> {
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Int64Value<'_>,
+    ) -> Result<This<'env>> {
         self.v &= to_i64(&env, value)?;
 
         Ok(this)
@@ -442,12 +351,12 @@ impl Int64 {
 
     /// Computes `self |= value`.
     #[napi]
-    pub fn or(
+    pub fn or<'env>(
         &mut self,
-        this: This,
+        this: This<'env>,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
-    ) -> Result<This> {
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Int64Value<'_>,
+    ) -> Result<This<'env>> {
         self.v |= to_i64(&env, value)?;
 
         Ok(this)
@@ -455,12 +364,12 @@ impl Int64 {
 
     /// Computes `self ^= value`.
     #[napi]
-    pub fn xor(
+    pub fn xor<'env>(
         &mut self,
-        this: This,
+        this: This<'env>,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
-    ) -> Result<This> {
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Int64Value<'_>,
+    ) -> Result<This<'env>> {
         self.v ^= to_i64(&env, value)?;
 
         Ok(this)
@@ -468,12 +377,12 @@ impl Int64 {
 
     /// Computes `self = ~(self & value)`.
     #[napi]
-    pub fn nand(
+    pub fn nand<'env>(
         &mut self,
-        this: This,
+        this: This<'env>,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
-    ) -> Result<This> {
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Int64Value<'_>,
+    ) -> Result<This<'env>> {
         self.v = !(self.v & to_i64(&env, value)?);
 
         Ok(this)
@@ -481,12 +390,12 @@ impl Int64 {
 
     /// Computes `self = ~(self | value)`.
     #[napi]
-    pub fn nor(
+    pub fn nor<'env>(
         &mut self,
-        this: This,
+        this: This<'env>,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
-    ) -> Result<This> {
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Int64Value<'_>,
+    ) -> Result<This<'env>> {
         self.v = !(self.v | to_i64(&env, value)?);
 
         Ok(this)
@@ -494,12 +403,12 @@ impl Int64 {
 
     /// Computes `self = ~(self ^ value)`.
     #[napi]
-    pub fn xnor(
+    pub fn xnor<'env>(
         &mut self,
-        this: This,
+        this: This<'env>,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
-    ) -> Result<This> {
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Int64Value<'_>,
+    ) -> Result<This<'env>> {
         self.v = !(self.v ^ to_i64(&env, value)?);
 
         Ok(this)
@@ -507,7 +416,7 @@ impl Int64 {
 
     /// Computes `self = ~self`.
     #[napi]
-    pub fn not(&mut self, this: This) -> Result<This> {
+    pub fn not<'env>(&mut self, this: This<'env>) -> Result<This<'env>> {
         self.v = !self.v;
 
         Ok(this)
@@ -515,8 +424,8 @@ impl Int64 {
 
     /// Computes `self = -self`.
     #[napi]
-    pub fn negative(&mut self, this: This) -> Result<This> {
-        self.v = -self.v;
+    pub fn negative<'env>(&mut self, this: This<'env>) -> Result<This<'env>> {
+        self.v = self.v.wrapping_neg();
 
         Ok(this)
     }
@@ -526,7 +435,7 @@ impl Int64 {
     pub fn eq(
         &self,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Int64Value<'_>,
     ) -> Result<bool> {
         let a = self.v;
         let b = to_i64(&env, value)?;
@@ -539,7 +448,7 @@ impl Int64 {
     pub fn ne(
         &self,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Int64Value<'_>,
     ) -> Result<bool> {
         let a = self.v;
         let b = to_i64(&env, value)?;
@@ -552,7 +461,7 @@ impl Int64 {
     pub fn gt(
         &self,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Int64Value<'_>,
     ) -> Result<bool> {
         let a = self.v;
         let b = to_i64(&env, value)?;
@@ -565,7 +474,7 @@ impl Int64 {
     pub fn gte(
         &self,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Int64Value<'_>,
     ) -> Result<bool> {
         let a = self.v;
         let b = to_i64(&env, value)?;
@@ -578,7 +487,7 @@ impl Int64 {
     pub fn lt(
         &self,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Int64Value<'_>,
     ) -> Result<bool> {
         let a = self.v;
         let b = to_i64(&env, value)?;
@@ -591,7 +500,7 @@ impl Int64 {
     pub fn lte(
         &self,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Int64Value<'_>,
     ) -> Result<bool> {
         let a = self.v;
         let b = to_i64(&env, value)?;
@@ -606,7 +515,7 @@ impl Int64 {
     pub fn comp(
         &self,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Int64Value<'_>,
     ) -> Result<Ordering> {
         let a = self.v;
         let b = to_i64(&env, value)?;
@@ -616,16 +525,16 @@ impl Int64 {
 
     /// Set a random 64-bit integer between `self` and `value`.
     #[napi]
-    pub fn random(
+    pub fn random<'env>(
         &mut self,
-        this: This,
+        this: This<'env>,
         env: Env,
-        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Either<&Int64, Unknown>,
-    ) -> Result<This> {
+        #[napi(ts_arg_type = "number | string | Buffer | Int64")] value: Int64Value<'_>,
+    ) -> Result<This<'env>> {
         let a = self.v;
         let b = to_i64(&env, value)?;
 
-        self.v = random_number::random!(a, b);
+        self.v = random_i64(a, b);
 
         Ok(this)
     }

@@ -1,14 +1,20 @@
-use napi::bindgen_prelude::*;
+use napi::{Env, Result};
 use napi_derive::napi;
 
-use crate::{to_i64, Int64, Ordering};
+use crate::{
+    Int64, Ordering,
+    functions::{
+        EXPONENT, Int64Value, ROTATION_BIT_COUNT, SHIFT_BIT_COUNT, divide_i64, modulo_i64,
+        random_i64, to_i64, to_u32,
+    },
+};
 
 /// Computes `a + b`, wrapping around at the boundary of an 64-bit integer.
 #[napi]
 pub fn add(
     env: Env,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Either<&Int64, Unknown>,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Either<&Int64, Unknown>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Int64Value<'_>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Int64Value<'_>,
 ) -> Result<Int64> {
     let a = to_i64(&env, a)?;
     let b = to_i64(&env, b)?;
@@ -22,8 +28,8 @@ pub fn add(
 #[napi]
 pub fn subtract(
     env: Env,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Either<&Int64, Unknown>,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Either<&Int64, Unknown>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Int64Value<'_>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Int64Value<'_>,
 ) -> Result<Int64> {
     let a = to_i64(&env, a)?;
     let b = to_i64(&env, b)?;
@@ -37,8 +43,8 @@ pub fn subtract(
 #[napi]
 pub fn multiply(
     env: Env,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Either<&Int64, Unknown>,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Either<&Int64, Unknown>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Int64Value<'_>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Int64Value<'_>,
 ) -> Result<Int64> {
     let a = to_i64(&env, a)?;
     let b = to_i64(&env, b)?;
@@ -49,32 +55,36 @@ pub fn multiply(
 }
 
 /// Computes `a / b`, wrapping around at the boundary of an 64-bit integer.
+///
+/// `b` must not be zero
 #[napi]
 pub fn divide(
     env: Env,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Either<&Int64, Unknown>,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Either<&Int64, Unknown>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Int64Value<'_>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Int64Value<'_>,
 ) -> Result<Int64> {
     let a = to_i64(&env, a)?;
     let b = to_i64(&env, b)?;
 
     Ok(Int64 {
-        v: a.wrapping_div(b)
+        v: divide_i64(&env, a, b)?
     })
 }
 
 /// Computes `a % b`.
+///
+/// `b` must not be zero
 #[napi(js_name = "mod")]
 pub fn modulo(
     env: Env,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Either<&Int64, Unknown>,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Either<&Int64, Unknown>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Int64Value<'_>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Int64Value<'_>,
 ) -> Result<Int64> {
     let a = to_i64(&env, a)?;
     let b = to_i64(&env, b)?;
 
     Ok(Int64 {
-        v: a.wrapping_rem(b)
+        v: modulo_i64(&env, a, b)?
     })
 }
 
@@ -84,30 +94,15 @@ pub fn modulo(
 #[napi]
 pub fn pow(
     env: Env,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Either<&Int64, Unknown>,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Either<&Int64, Unknown>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Int64Value<'_>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Int64Value<'_>,
 ) -> Result<Int64> {
     let a = to_i64(&env, a)?;
     let b = to_i64(&env, b)?;
-
-    if b < 0 {
-        env.throw_range_error(
-            "the exponent of an integer number must not be smaller than zero",
-            None,
-        )?;
-
-        return Err(Error::from_reason(""));
-    } else if b > u32::MAX as i64 {
-        env.throw_range_error(
-            &format!("the exponent of an integer number must not be bigger than {}", u32::MAX),
-            None,
-        )?;
-
-        return Err(Error::from_reason(""));
-    }
+    let b = to_u32(&env, b, EXPONENT)?;
 
     Ok(Int64 {
-        v: a.wrapping_pow(b as u32)
+        v: a.wrapping_pow(b)
     })
 }
 
@@ -117,27 +112,15 @@ pub fn pow(
 #[napi(js_name = "shiftLeft")]
 pub fn shift_left(
     env: Env,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Either<&Int64, Unknown>,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Either<&Int64, Unknown>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Int64Value<'_>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Int64Value<'_>,
 ) -> Result<Int64> {
     let a = to_i64(&env, a)?;
     let b = to_i64(&env, b)?;
-
-    if b < 0 {
-        env.throw_range_error("the bit count for shift must not be smaller than zero", None)?;
-
-        return Err(Error::from_reason(""));
-    } else if b > u32::MAX as i64 {
-        env.throw_range_error(
-            &format!("the bit count for shift must not be bigger than {}", u32::MAX),
-            None,
-        )?;
-
-        return Err(Error::from_reason(""));
-    }
+    let b = to_u32(&env, b, SHIFT_BIT_COUNT)?;
 
     Ok(Int64 {
-        v: a.wrapping_shl(b as u32)
+        v: a.wrapping_shl(b)
     })
 }
 
@@ -147,27 +130,15 @@ pub fn shift_left(
 #[napi(js_name = "shiftRight")]
 pub fn shift_right(
     env: Env,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Either<&Int64, Unknown>,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Either<&Int64, Unknown>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Int64Value<'_>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Int64Value<'_>,
 ) -> Result<Int64> {
     let a = to_i64(&env, a)?;
     let b = to_i64(&env, b)?;
-
-    if b < 0 {
-        env.throw_range_error("the bit count for shift must not be smaller than zero", None)?;
-
-        return Err(Error::from_reason(""));
-    } else if b > u32::MAX as i64 {
-        env.throw_range_error(
-            &format!("the bit count for shift must not be bigger than {}", u32::MAX),
-            None,
-        )?;
-
-        return Err(Error::from_reason(""));
-    }
+    let b = to_u32(&env, b, SHIFT_BIT_COUNT)?;
 
     Ok(Int64 {
-        v: a.wrapping_shr(b as u32)
+        v: a.wrapping_shr(b)
     })
 }
 
@@ -177,27 +148,15 @@ pub fn shift_right(
 #[napi(js_name = "shiftRightUnsigned")]
 pub fn shift_right_unsigned(
     env: Env,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Either<&Int64, Unknown>,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Either<&Int64, Unknown>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Int64Value<'_>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Int64Value<'_>,
 ) -> Result<Int64> {
     let a = to_i64(&env, a)?;
     let b = to_i64(&env, b)?;
-
-    if b < 0 {
-        env.throw_range_error("the bit count for shift must not be smaller than zero", None)?;
-
-        return Err(Error::from_reason(""));
-    } else if b > u32::MAX as i64 {
-        env.throw_range_error(
-            &format!("the bit count for shift must not be bigger than {}", u32::MAX),
-            None,
-        )?;
-
-        return Err(Error::from_reason(""));
-    }
+    let b = to_u32(&env, b, SHIFT_BIT_COUNT)?;
 
     Ok(Int64 {
-        v: (a as u64).wrapping_shr(b as u32) as i64
+        v: (a as u64).wrapping_shr(b) as i64
     })
 }
 
@@ -207,27 +166,15 @@ pub fn shift_right_unsigned(
 #[napi(js_name = "rotateLeft")]
 pub fn rotate_left(
     env: Env,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Either<&Int64, Unknown>,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Either<&Int64, Unknown>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Int64Value<'_>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Int64Value<'_>,
 ) -> Result<Int64> {
     let a = to_i64(&env, a)?;
     let b = to_i64(&env, b)?;
-
-    if b < 0 {
-        env.throw_range_error("the bit count for rotation must not be smaller than zero", None)?;
-
-        return Err(Error::from_reason(""));
-    } else if b > u32::MAX as i64 {
-        env.throw_range_error(
-            &format!("the bit count for rotation must not be bigger than {}", u32::MAX),
-            None,
-        )?;
-
-        return Err(Error::from_reason(""));
-    }
+    let b = to_u32(&env, b, ROTATION_BIT_COUNT)?;
 
     Ok(Int64 {
-        v: a.rotate_left(b as u32)
+        v: a.rotate_left(b)
     })
 }
 
@@ -237,27 +184,15 @@ pub fn rotate_left(
 #[napi(js_name = "rotateRight")]
 pub fn rotate_right(
     env: Env,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Either<&Int64, Unknown>,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Either<&Int64, Unknown>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Int64Value<'_>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Int64Value<'_>,
 ) -> Result<Int64> {
     let a = to_i64(&env, a)?;
     let b = to_i64(&env, b)?;
-
-    if b < 0 {
-        env.throw_range_error("the bit count for rotation must not be smaller than zero", None)?;
-
-        return Err(Error::from_reason(""));
-    } else if b > u32::MAX as i64 {
-        env.throw_range_error(
-            &format!("the bit count for rotation must not be bigger than {}", u32::MAX),
-            None,
-        )?;
-
-        return Err(Error::from_reason(""));
-    }
+    let b = to_u32(&env, b, ROTATION_BIT_COUNT)?;
 
     Ok(Int64 {
-        v: a.rotate_right(b as u32)
+        v: a.rotate_right(b)
     })
 }
 
@@ -265,8 +200,8 @@ pub fn rotate_right(
 #[napi]
 pub fn and(
     env: Env,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Either<&Int64, Unknown>,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Either<&Int64, Unknown>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Int64Value<'_>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Int64Value<'_>,
 ) -> Result<Int64> {
     let a = to_i64(&env, a)?;
     let b = to_i64(&env, b)?;
@@ -280,8 +215,8 @@ pub fn and(
 #[napi]
 pub fn or(
     env: Env,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Either<&Int64, Unknown>,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Either<&Int64, Unknown>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Int64Value<'_>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Int64Value<'_>,
 ) -> Result<Int64> {
     let a = to_i64(&env, a)?;
     let b = to_i64(&env, b)?;
@@ -295,8 +230,8 @@ pub fn or(
 #[napi]
 pub fn xor(
     env: Env,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Either<&Int64, Unknown>,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Either<&Int64, Unknown>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Int64Value<'_>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Int64Value<'_>,
 ) -> Result<Int64> {
     let a = to_i64(&env, a)?;
     let b = to_i64(&env, b)?;
@@ -310,8 +245,8 @@ pub fn xor(
 #[napi]
 pub fn nand(
     env: Env,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Either<&Int64, Unknown>,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Either<&Int64, Unknown>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Int64Value<'_>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Int64Value<'_>,
 ) -> Result<Int64> {
     let mut n = and(env, a, b)?;
 
@@ -324,8 +259,8 @@ pub fn nand(
 #[napi]
 pub fn nor(
     env: Env,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Either<&Int64, Unknown>,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Either<&Int64, Unknown>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Int64Value<'_>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Int64Value<'_>,
 ) -> Result<Int64> {
     let mut n = or(env, a, b)?;
 
@@ -338,8 +273,8 @@ pub fn nor(
 #[napi]
 pub fn xnor(
     env: Env,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Either<&Int64, Unknown>,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Either<&Int64, Unknown>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Int64Value<'_>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Int64Value<'_>,
 ) -> Result<Int64> {
     let mut n = xor(env, a, b)?;
 
@@ -352,7 +287,7 @@ pub fn xnor(
 #[napi]
 pub fn not(
     env: Env,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Either<&Int64, Unknown>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Int64Value<'_>,
 ) -> Result<Int64> {
     let a = to_i64(&env, a)?;
 
@@ -365,12 +300,12 @@ pub fn not(
 #[napi]
 pub fn negative(
     env: Env,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Either<&Int64, Unknown>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Int64Value<'_>,
 ) -> Result<Int64> {
     let a = to_i64(&env, a)?;
 
     Ok(Int64 {
-        v: -a
+        v: a.wrapping_neg()
     })
 }
 
@@ -378,8 +313,8 @@ pub fn negative(
 #[napi]
 pub fn eq(
     env: Env,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Either<&Int64, Unknown>,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Either<&Int64, Unknown>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Int64Value<'_>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Int64Value<'_>,
 ) -> Result<bool> {
     let a = to_i64(&env, a)?;
     let b = to_i64(&env, b)?;
@@ -391,8 +326,8 @@ pub fn eq(
 #[napi]
 pub fn ne(
     env: Env,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Either<&Int64, Unknown>,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Either<&Int64, Unknown>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Int64Value<'_>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Int64Value<'_>,
 ) -> Result<bool> {
     let a = to_i64(&env, a)?;
     let b = to_i64(&env, b)?;
@@ -404,8 +339,8 @@ pub fn ne(
 #[napi]
 pub fn gt(
     env: Env,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Either<&Int64, Unknown>,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Either<&Int64, Unknown>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Int64Value<'_>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Int64Value<'_>,
 ) -> Result<bool> {
     let a = to_i64(&env, a)?;
     let b = to_i64(&env, b)?;
@@ -417,8 +352,8 @@ pub fn gt(
 #[napi]
 pub fn gte(
     env: Env,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Either<&Int64, Unknown>,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Either<&Int64, Unknown>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Int64Value<'_>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Int64Value<'_>,
 ) -> Result<bool> {
     let a = to_i64(&env, a)?;
     let b = to_i64(&env, b)?;
@@ -430,8 +365,8 @@ pub fn gte(
 #[napi]
 pub fn lt(
     env: Env,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Either<&Int64, Unknown>,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Either<&Int64, Unknown>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Int64Value<'_>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Int64Value<'_>,
 ) -> Result<bool> {
     let a = to_i64(&env, a)?;
     let b = to_i64(&env, b)?;
@@ -443,8 +378,8 @@ pub fn lt(
 #[napi]
 pub fn lte(
     env: Env,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Either<&Int64, Unknown>,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Either<&Int64, Unknown>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Int64Value<'_>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Int64Value<'_>,
 ) -> Result<bool> {
     let a = to_i64(&env, a)?;
     let b = to_i64(&env, b)?;
@@ -458,8 +393,8 @@ pub fn lte(
 #[napi]
 pub fn comp(
     env: Env,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Either<&Int64, Unknown>,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Either<&Int64, Unknown>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Int64Value<'_>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Int64Value<'_>,
 ) -> Result<Ordering> {
     let a = to_i64(&env, a)?;
     let b = to_i64(&env, b)?;
@@ -471,13 +406,13 @@ pub fn comp(
 #[napi]
 pub fn random(
     env: Env,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Either<&Int64, Unknown>,
-    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Either<&Int64, Unknown>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] a: Int64Value<'_>,
+    #[napi(ts_arg_type = "number | string | Buffer | Int64")] b: Int64Value<'_>,
 ) -> Result<Int64> {
     let a = to_i64(&env, a)?;
     let b = to_i64(&env, b)?;
 
     Ok(Int64 {
-        v: random_number::random!(a, b)
+        v: random_i64(a, b)
     })
 }
